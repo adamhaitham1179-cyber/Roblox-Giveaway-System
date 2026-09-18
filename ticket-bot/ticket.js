@@ -1938,7 +1938,7 @@ client.on(
 
     try {
 
-        await client.login(TOKEN);
+        await client.login(TICKET_BOT_TOKEN);
 
         await registerCommands();
 

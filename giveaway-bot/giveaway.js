@@ -206,7 +206,7 @@ async function registerCommands() {
     const rest = new REST({
         version: "10"
     }).setToken(
-        process.env.TOKEN
+        process.env.GIVEAWAY_BOT_TOKEN
     );
 
     try {
@@ -2523,7 +2523,7 @@ async function start() {
     // =================================================
 
     if (
-        !process.env.TOKEN
+        !process.env.GIVEAWAY_BOT_TOKEN
     ) {
 
         console.error(
@@ -2580,7 +2580,7 @@ async function start() {
     try {
 
         await client.login(
-            process.env.TOKEN
+            process.env.GIVEAWAY_BOT_TOKEN
         );
 
     } catch (error) {
