@@ -1,11 +1,14 @@
 {
-  "name": "discord-bots",
+  "name": "ticket-bot",
   "version": "1.0.0",
-  "description": "Discord Ticket & Giveaway Bots",
-  "main": "start.js",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "start": "node start.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^13.0.3",
