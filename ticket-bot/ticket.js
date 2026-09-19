@@ -463,69 +463,46 @@ async function createWinnerTicket(data) {
     // ==================================================
 
     const permissionOverwrites = [
+    // @everyone cannot see the ticket
+    {
+        id: guild.id,
+        deny: [
+            PermissionsBitField.Flags.ViewChannel
+        ]
+    },
 
-        // --------------------------------------------------
-        // EVERYONE
-        // --------------------------------------------------
+    // Giveaway winner
+    {
+        id: winnerUser.id,
+        allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.ReadMessageHistory
+        ]
+    },
 
-        {
-            id: guild.id,
-            deny: [
-                PermissionsBitField.Flags.ViewChannel
-            ]
-        },
+    // Ticket Staff
+    {
+        id: staffRole.id,
+        allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.ReadMessageHistory
+        ]
+    },
 
-        // --------------------------------------------------
-        // WINNER
-        // --------------------------------------------------
-
-        {
-            id: winnerUser.id,
-
-            allow: [
-                PermissionsBitField.Flags.ViewChannel,
-                PermissionsBitField.Flags.SendMessages,
-                PermissionsBitField.Flags.ReadMessageHistory
-            ],
-
-            deny: [
-                PermissionsBitField.Flags.ManageChannels,
-                PermissionsBitField.Flags.ManageMessages
-            ]
-        },
-
-        // --------------------------------------------------
-        // STAFF ROLE
-        // --------------------------------------------------
-
-        {
-            id: staffRole.id,
-
-            allow: [
-                PermissionsBitField.Flags.ViewChannel,
-                PermissionsBitField.Flags.SendMessages,
-                PermissionsBitField.Flags.ReadMessageHistory,
-                PermissionsBitField.Flags.ManageChannels,
-                PermissionsBitField.Flags.ManageMessages
-            ]
-        },
-
-        // --------------------------------------------------
-        // BOT
-        // --------------------------------------------------
-
-        {
-            id: client.user.id,
-
-            allow: [
-                PermissionsBitField.Flags.ViewChannel,
-                PermissionsBitField.Flags.SendMessages,
-                PermissionsBitField.Flags.ReadMessageHistory,
-                PermissionsBitField.Flags.ManageChannels,
-                PermissionsBitField.Flags.ManageMessages
-            ]
-        }
-    ];
+    // Ticket Bot
+    {
+        id: client.user.id,
+        allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.ReadMessageHistory,
+            PermissionsBitField.Flags.ManageChannels,
+            PermissionsBitField.Flags.ManageMessages
+        ]
+    }
+];
 
     // ==================================================
     // SAFE CHANNEL NAME
