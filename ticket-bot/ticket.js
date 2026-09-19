@@ -35,7 +35,13 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const API_SECRET = process.env.API_SECRET;
-const API_PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
+
+// Railway provides PORT automatically.
+// 0.0.0.0 is required so Railway can reach the API.
+const API_PORT = Number(
+    process.env.PORT || process.env.API_PORT || 3001
+);
+
 const config = require("./config.json");
 
 const client = new Client({
@@ -55,7 +61,6 @@ const commands = [
             "Set the category and staff role for giveaway winner tickets.",
         default_member_permissions:
             PermissionsBitField.Flags.ManageGuild.toString(),
-
         options: [
             {
                 name: "category",
@@ -67,7 +72,6 @@ const commands = [
                     ChannelType.GuildCategory
                 ]
             },
-
             {
                 name: "staff_role",
                 description:
@@ -77,7 +81,6 @@ const commands = [
             }
         ]
     },
-
     {
         name: "ticket-manage",
         description:
@@ -129,7 +132,6 @@ async function registerCommands() {
                 console.log(
                     `✅ Commands registered in: ${guild.name}`
                 );
-
             } catch (error) {
                 console.error(
                     `❌ Failed to register commands in ${guild.name}:`,
@@ -155,6 +157,7 @@ async function registerCommands() {
 // ======================================================
 
 async function isStaff(interaction) {
+
     if (!interaction.guild) {
         return false;
     }
@@ -205,6 +208,7 @@ async function isStaff(interaction) {
 // ======================================================
 
 function extractGamePassId(url) {
+
     if (
         !url ||
         typeof url !== "string"
@@ -220,6 +224,7 @@ function extractGamePassId(url) {
     }
 
     try {
+
         const parsed = new URL(url);
 
         // --------------------------------------------------
@@ -293,6 +298,7 @@ function extractGamePassId(url) {
 // ======================================================
 
 function normalizeGamePassUrl(url) {
+
     const gamePassId =
         extractGamePassId(url);
 
@@ -464,7 +470,6 @@ async function createWinnerTicket(data) {
 
         {
             id: guild.id,
-
             deny: [
                 PermissionsBitField.Flags.ViewChannel
             ]
@@ -584,21 +589,18 @@ async function createWinnerTicket(data) {
                 "Please follow the instructions below to receive your Robux."
             )
             .addFields(
-
                 {
                     name: "🎮 Roblox Username",
                     value:
                         `\`${robloxUsername}\``,
                     inline: true
                 },
-
                 {
                     name: "💰 Prize",
                     value:
                         `**${robux} Robux**`,
                     inline: true
                 },
-
                 {
                     name: "📋 What to do",
                     value:
@@ -609,7 +611,6 @@ async function createWinnerTicket(data) {
                         "5. Click **Submit Game Pass** below and send the link.\n\n" +
                         "Staff will manually verify the Game Pass before sending the Robux."
                 }
-
             )
             .setFooter({
                 text:
@@ -623,7 +624,6 @@ async function createWinnerTicket(data) {
     const playerButtons =
         new ActionRowBuilder()
             .addComponents(
-
                 new ButtonBuilder()
                     .setCustomId(
                         `submit_gamepass_${ticketId}`
@@ -635,7 +635,6 @@ async function createWinnerTicket(data) {
                     .setStyle(
                         ButtonStyle.Primary
                     )
-
             );
 
     // ==================================================
@@ -821,14 +820,10 @@ client.on(
                 // --------------------------------------------------
 
                 await interaction.reply({
-
                     content:
                         "✅ **Ticket system configured successfully.**\n\n" +
-
                         `📁 Category: <#${category.id}>\n` +
-
                         `👮 Staff Role: <@&${staffRole.id}>\n\n` +
-
                         "🎫 Giveaway tickets will only be visible to the giveaway winner and members with the Staff Role.",
 
                     flags:
@@ -845,7 +840,6 @@ client.on(
                 if (!interaction.replied) {
 
                     await interaction.reply({
-
                         content:
                             "❌ An error occurred while configuring the ticket system.",
 
@@ -965,7 +959,6 @@ client.on(
                                 .setStyle(
                                     ButtonStyle.Danger
                                 )
-
                         );
 
                 return interaction.reply({
@@ -994,7 +987,6 @@ client.on(
                 ) {
 
                     await interaction.reply({
-
                         content:
                             "❌ An error occurred while opening staff controls.",
 
@@ -1206,18 +1198,12 @@ client.on(
                             "🔎 Game Pass Submitted"
                         )
                         .setDescription(
-
                             "The Game Pass link is a valid Roblox Game Pass URL.\n\n" +
-
                             "⚠️ **Manual verification required:**\n" +
-
                             "Open the Game Pass below in your browser and manually check the Game Pass before paying the winner.\n\n" +
-
                             "The bot does **not** automatically verify the price, creator, On Sale status, or other Roblox properties."
-
                         )
                         .addFields(
-
                             {
                                 name:
                                     "🎮 Roblox Username",
@@ -1228,7 +1214,6 @@ client.on(
                                 inline:
                                     true
                             },
-
                             {
                                 name:
                                     "💰 Giveaway Prize",
@@ -1239,7 +1224,6 @@ client.on(
                                 inline:
                                     true
                             },
-
                             {
                                 name:
                                     "🆔 Game Pass ID",
@@ -1250,7 +1234,6 @@ client.on(
                                 inline:
                                     true
                             },
-
                             {
                                 name:
                                     "🔗 Submitted Game Pass",
@@ -1261,7 +1244,6 @@ client.on(
                                 inline:
                                     false
                             }
-
                         );
 
                 // --------------------------------------------------
@@ -1307,7 +1289,6 @@ client.on(
                                 .setStyle(
                                     ButtonStyle.Danger
                                 )
-
                         );
 
                 return interaction.reply({
@@ -1401,7 +1382,6 @@ client.on(
                         content:
                             `💸 <@${ticket.discordId}>\n\n` +
                             `Your **${ticket.robux} Robux** giveaway reward has been marked as paid by staff.`
-
                     });
 
                 } catch (error) {
@@ -1621,11 +1601,8 @@ client.on(
 
                         content:
                             "❌ Invalid Game Pass URL.\n\n" +
-
                             "Only a valid HTTPS Roblox Game Pass link is accepted.\n\n" +
-
                             "Example:\n" +
-
                             "`https://www.roblox.com/game-pass/123456789`",
 
                         flags:
@@ -1653,7 +1630,6 @@ client.on(
 
                     content:
                         "✅ Game Pass link submitted successfully.\n\n" +
-
                         "Staff can now use `/ticket-manage` and click **Verify Game Pass** to manually verify it.",
 
                     flags:
@@ -1671,7 +1647,6 @@ client.on(
                         content:
                             `🎮 <@${ticket.discordId}> submitted a Game Pass.\n\n` +
                             "Staff can now use `/ticket-manage` to verify it."
-
                     });
 
                 } catch (error) {
@@ -1825,7 +1800,6 @@ app.post(
 
                 channelId:
                     channel.id
-
             });
 
         } catch (error) {
@@ -1845,7 +1819,6 @@ app.post(
                     error:
                         error.message ||
                         "Internal server error"
-
                 });
         }
     }
@@ -1861,7 +1834,11 @@ app.listen(
     () => {
 
         console.log(
-            `🌐 Internal API running on 127.0.0.1:${API_PORT}`
+            `🌐 Internal API running on 0.0.0.0:${API_PORT}`
+        );
+
+        console.log(
+            `🔗 Health endpoint: /internal/health`
         );
     }
 );
@@ -1937,7 +1914,8 @@ client.on(
 
     try {
 
-    await client.login(TOKEN);
+        await client.login(TOKEN);
+
         await registerCommands();
 
     } catch (error) {
