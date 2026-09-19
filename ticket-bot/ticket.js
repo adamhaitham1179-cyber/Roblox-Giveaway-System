@@ -35,8 +35,7 @@ const {
 
 const TOKEN = process.env.TOKEN;
 const API_SECRET = process.env.API_SECRET;
-const API_PORT = Number(process.env.API_PORT || 3001);
-
+const API_PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 const config = require("./config.json");
 
 const client = new Client({
@@ -1858,7 +1857,7 @@ app.post(
 
 app.listen(
     API_PORT,
-    "127.0.0.1",
+    "0.0.0.0",
     () => {
 
         console.log(
@@ -1938,8 +1937,7 @@ client.on(
 
     try {
 
-        await client.login(TICKET_BOT_TOKEN);
-
+    await client.login(TOKEN);
         await registerCommands();
 
     } catch (error) {
