@@ -25,30 +25,38 @@ const client = new Client({
     ]
 });
 
+// =====================================================
+// DURATION
+// =====================================================
+
 function parseDuration(input) {
+
     if (!input) {
         return null;
     }
 
-    const value = input.trim().toLowerCase();
+    const value = input
+        .trim()
+        .toLowerCase();
 
-    const match = value.match(/^(\d+)\s*(m|h|d|w)$/);
+    const match =
+        value.match(/^(\d+)\s*(m|h|d|w)$/);
 
     if (!match) {
         return null;
     }
 
-    const number = Number(match[1]);
+    const number =
+        Number(match[1]);
 
     if (number <= 0) {
         return null;
     }
 
-    const unit = match[2];
-
     let seconds;
 
-    switch (unit) {
+    switch (match[2]) {
+
         case "m":
             seconds = number * 60;
             break;
@@ -80,58 +88,108 @@ function parseDuration(input) {
     return seconds;
 }
 
+// =====================================================
+// COMMANDS
+// =====================================================
+
 const commands = [
 
+    // -------------------------------------------------
+    // NORMAL GIVEAWAY SETUP
+    // -------------------------------------------------
+
     new SlashCommandBuilder()
+
         .setName("setup-giveaway")
+
         .setDescription(
-            "Set the role allowed to create and manage giveaways."
+            "Set the role allowed to create normal giveaways."
         )
+
         .addRoleOption(option =>
             option
                 .setName("staff_role")
                 .setDescription(
-                    "The role allowed to create and manage giveaways."
+                    "Role allowed to create and manage normal giveaways."
                 )
                 .setRequired(true)
         )
+
         .setDefaultMemberPermissions(
             PermissionFlagsBits.ManageGuild
         )
+
         .toJSON(),
 
+    // -------------------------------------------------
+    // SPECIAL GIVEAWAY SETUP
+    // -------------------------------------------------
+
     new SlashCommandBuilder()
+
+        .setName("setup-special-giveaway")
+
+        .setDescription(
+            "Set the role allowed to create special giveaways."
+        )
+
+        .addRoleOption(option =>
+            option
+                .setName("staff_role")
+                .setDescription(
+                    "Role allowed to create special giveaways."
+                )
+                .setRequired(true)
+        )
+
+        .setDefaultMemberPermissions(
+            PermissionFlagsBits.ManageGuild
+        )
+
+        .toJSON(),
+
+    // -------------------------------------------------
+    // NORMAL GIVEAWAY
+    // -------------------------------------------------
+
+    new SlashCommandBuilder()
+
         .setName("giveaway")
+
         .setDescription(
-            "Create a Robux giveaway"
+            "Create a Robux giveaway."
         )
+
         .addIntegerOption(option =>
             option
                 .setName("robux")
                 .setDescription(
-                    "Amount of Robux"
+                    "Amount of Robux."
                 )
                 .setRequired(true)
                 .setMinValue(1)
         )
+
         .addStringOption(option =>
             option
                 .setName("duration")
                 .setDescription(
-                    "Example: 1m, 2h, 1d, 1w"
+                    "Example: 1m, 2h, 1d, 1w."
                 )
                 .setRequired(true)
         )
+
         .addIntegerOption(option =>
             option
                 .setName("winners")
                 .setDescription(
-                    "Number of winners"
+                    "Number of winners."
                 )
                 .setRequired(true)
                 .setMinValue(1)
                 .setMaxValue(20)
         )
+
         .addBooleanOption(option =>
             option
                 .setName("ping")
@@ -140,40 +198,51 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .toJSON(),
 
+    // -------------------------------------------------
+    // SPECIAL GIVEAWAY
+    // -------------------------------------------------
+
     new SlashCommandBuilder()
+
         .setName("specialgiveaway")
+
         .setDescription(
-            "Create a Robux giveaway for a specific role."
+            "Create a giveaway for members with a specific role."
         )
+
         .addIntegerOption(option =>
             option
                 .setName("robux")
                 .setDescription(
-                    "Amount of Robux"
+                    "Amount of Robux."
                 )
                 .setRequired(true)
                 .setMinValue(1)
         )
+
         .addStringOption(option =>
             option
                 .setName("duration")
                 .setDescription(
-                    "Example: 1m, 2h, 1d, 1w"
+                    "Example: 1m, 2h, 1d, 1w."
                 )
                 .setRequired(true)
         )
+
         .addIntegerOption(option =>
             option
                 .setName("winners")
                 .setDescription(
-                    "Number of winners"
+                    "Number of winners."
                 )
                 .setRequired(true)
                 .setMinValue(1)
                 .setMaxValue(20)
         )
+
         .addBooleanOption(option =>
             option
                 .setName("ping")
@@ -182,24 +251,31 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .addRoleOption(option =>
             option
                 .setName("special_role")
                 .setDescription(
-                    "The role allowed to join this giveaway."
+                    "Role required to join this giveaway."
                 )
                 .setRequired(true)
         )
+
         .toJSON()
 ];
 
+// =====================================================
+// COMMAND REGISTRATION
+// =====================================================
+
 async function registerCommands() {
 
-    const rest = new REST({
-        version: "10"
-    }).setToken(
-        process.env.GIVEAWAY_BOT_TOKEN
-    );
+    const rest =
+        new REST({
+            version: "10"
+        }).setToken(
+            process.env.GIVEAWAY_BOT_TOKEN
+        );
 
     try {
 
@@ -217,7 +293,7 @@ async function registerCommands() {
         );
 
         console.log(
-            "✅ Global commands registered!"
+            "✅ Global commands registered."
         );
 
         for (
@@ -244,27 +320,28 @@ async function registerCommands() {
             } catch (error) {
 
                 console.error(
-                    `❌ Failed to register commands in ${guild.name}:`,
-                    error
+                    `❌ Could not register commands in ${guild.name}:`,
+                    error.message
                 );
-
             }
-
         }
 
     } catch (error) {
 
         console.error(
-            "❌ Command registration error:"
+            "❌ Command registration failed:",
+            error
         );
-
-        console.error(error);
-
     }
-
 }
 
-function isGiveawayStaff(interaction) {
+// =====================================================
+// NORMAL GIVEAWAY STAFF CHECK
+// =====================================================
+
+function isGiveawayStaff(
+    interaction
+) {
 
     if (!interaction.guild) {
         return false;
@@ -282,37 +359,112 @@ function isGiveawayStaff(interaction) {
         return true;
     }
 
-    const giveawayConfig =
+    const settings =
         db.getGiveawayConfig(
             interaction.guild.id
         );
 
     if (
-        !giveawayConfig ||
-        !giveawayConfig.staffRoleId
+        !settings ||
+        !settings.staffRoleId
     ) {
         return false;
     }
 
     return interaction.member.roles.cache.has(
-        giveawayConfig.staffRoleId
+        settings.staffRoleId
     );
 }
+
+// =====================================================
+// SPECIAL GIVEAWAY STAFF CHECK
+// =====================================================
+
+function isSpecialGiveawayStaff(
+    interaction
+) {
+
+    if (!interaction.guild) {
+        return false;
+    }
+
+    if (!interaction.member) {
+        return false;
+    }
+
+    if (
+        interaction.member.permissions.has(
+            PermissionFlagsBits.ManageGuild
+        )
+    ) {
+        return true;
+    }
+
+    const settings =
+        db.getGiveawayConfig(
+            interaction.guild.id
+        );
+
+    if (
+        !settings ||
+        !settings.specialStaffRoleId
+    ) {
+        return false;
+    }
+
+    return interaction.member.roles.cache.has(
+        settings.specialStaffRoleId
+    );
+}
+
+// =====================================================
+// GIVEAWAY EMBED
+// =====================================================
 
 function createGiveawayEmbed(
     giveaway,
     participantCount
 ) {
 
-    const hostText =
+    const host =
         giveaway.hostId
             ? `<@${giveaway.hostId}>`
             : "Unknown";
 
-    const specialRoleText =
-        giveaway.specialRoleId
-            ? `<@&${giveaway.specialRoleId}>`
-            : null;
+    let description =
+
+        `# 💰 ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
+        `🎁 **Prize**\n` +
+        `Win **${giveaway.robux.toLocaleString()} Robux**!\n\n` +
+
+        `🏆 **Winners**\n` +
+        `${giveaway.winners}\n\n` +
+
+        `👑 **Host By**\n` +
+        `${host}\n\n`;
+
+    if (giveaway.specialRoleId) {
+
+        description +=
+
+            `🔐 **This Giveaway is for special roles only:**\n` +
+            `<@&${giveaway.specialRoleId}>\n\n`;
+    }
+
+    description +=
+
+        `⏰ **Ends**\n` +
+        `<t:${Math.floor(giveaway.endTime / 1000)}:R>\n\n` +
+
+        `👥 **Participants**\n` +
+        `${participantCount}\n\n` +
+
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+
+        `🎉 Press **Join Giveaway** to enter!\n` +
+
+        `📝 You will be asked for your Roblox Username.`;
 
     return new EmbedBuilder()
 
@@ -321,57 +473,26 @@ function createGiveawayEmbed(
         )
 
         .setDescription(
-
-            `# 💰 ${giveaway.robux.toLocaleString()} Robux\n\n` +
-
-            `🎁 **Prize**\n` +
-            `Win **${giveaway.robux.toLocaleString()} Robux**!\n\n` +
-
-            `🏆 **Winners**\n` +
-            `${giveaway.winners}\n\n` +
-
-            `👑 **Host By**\n` +
-            `${hostText}\n\n` +
-
-            (
-                specialRoleText
-                    ? `🎭 **Special Role**\n` +
-                      `${specialRoleText}\n\n` +
-                      `🔐 **This Giveaway is for special roles only:**\n` +
-                      `${specialRoleText}\n\n`
-                    : ""
-            ) +
-
-            `⏰ **Ends**\n` +
-            `<t:${Math.floor(giveaway.endTime / 1000)}:R>\n\n` +
-
-            `👥 **Participants**\n` +
-            `${participantCount}\n\n` +
-
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-
-            `🎉 Press **Join Giveaway** to enter!\n` +
-
-            `📝 You will be asked for your Roblox Username.`
-
+            description
         )
 
         .setFooter({
-
             text:
                 "Roblox Giveaway • Good luck! 🍀"
-
         })
 
         .setTimestamp();
-
 }
+
+// =====================================================
+// BUTTONS
+// =====================================================
 
 function createGiveawayButtons(
     giveawayId
 ) {
 
-    const joinButton =
+    const join =
         new ButtonBuilder()
 
             .setCustomId(
@@ -390,7 +511,7 @@ function createGiveawayButtons(
                 ButtonStyle.Success
             );
 
-    const endButton =
+    const end =
         new ButtonBuilder()
 
             .setCustomId(
@@ -411,10 +532,14 @@ function createGiveawayButtons(
 
     return new ActionRowBuilder()
         .addComponents(
-            joinButton,
-            endButton
+            join,
+            end
         );
 }
+
+// =====================================================
+// READY
+// =====================================================
 
 client.once(
     "ready",
@@ -430,18 +555,17 @@ client.once(
 
         await registerCommands();
 
-        console.log(
-            "🔄 Checking active giveaways..."
-        );
-
         await restoreGiveaways();
 
         console.log(
-            "✅ Giveaway system restored!"
+            "✅ Giveaway system restored."
         );
-
     }
 );
+
+// =====================================================
+// INTERACTIONS
+// =====================================================
 
 client.on(
     "interactionCreate",
@@ -449,9 +573,17 @@ client.on(
 
         try {
 
+            // =========================================
+            // CHAT COMMANDS
+            // =========================================
+
             if (
                 interaction.isChatInputCommand()
             ) {
+
+                // -------------------------------------
+                // SETUP NORMAL GIVEAWAY
+                // -------------------------------------
 
                 if (
                     interaction.commandName ===
@@ -467,360 +599,219 @@ client.on(
                         return interaction.reply({
 
                             content:
-                                "❌ You need **Manage Server** permission to configure the giveaway system.",
+                                "❌ You need **Manage Server** permission.",
 
                             ephemeral: true
-
                         });
-
                     }
 
-                    const staffRole =
+                    const role =
                         interaction.options.getRole(
                             "staff_role"
                         );
 
-                    if (!staffRole) {
+                    if (!role) {
 
                         return interaction.reply({
 
                             content:
-                                "❌ Please select a staff role.",
+                                "❌ Please select a role.",
 
                             ephemeral: true
-
                         });
-
                     }
 
-                    if (
-                        staffRole.id ===
-                        interaction.guild.id
-                    ) {
+                    if (role.id === interaction.guild.id) {
 
                         return interaction.reply({
 
                             content:
-                                "❌ You cannot use **@everyone** as the Giveaway Staff role.",
+                                "❌ You cannot use @everyone.",
 
                             ephemeral: true
-
                         });
-
                     }
 
-                    if (staffRole.managed) {
+                    if (role.managed) {
 
                         return interaction.reply({
 
                             content:
-                                "❌ You cannot use a managed or integration role as the Giveaway Staff role.",
+                                "❌ You cannot use a managed role.",
 
                             ephemeral: true
-
                         });
-
                     }
 
                     db.setGiveawayConfig(
                         interaction.guild.id,
-                        staffRole.id
+                        role.id
                     );
 
                     return interaction.reply({
 
                         content:
                             `✅ **Giveaway system configured!**\n\n` +
-                            `🎁 Giveaway Staff Role: ${staffRole}\n\n` +
-                            `Members with this role can now create and manage giveaways.\n\n` +
-                            `🛡️ Members with **Manage Server** can also manage giveaways.`,
+                            `🎁 Giveaway Staff Role: ${role}`,
 
                         ephemeral: true
-
                     });
-
                 }
 
+                // -------------------------------------
+                // SETUP SPECIAL GIVEAWAY
+                // -------------------------------------
+
                 if (
-                    interaction.commandName !== "giveaway" &&
-                    interaction.commandName !== "specialgiveaway"
+                    interaction.commandName ===
+                    "setup-special-giveaway"
                 ) {
+
+                    if (
+                        !interaction.member.permissions.has(
+                            PermissionFlagsBits.ManageGuild
+                        )
+                    ) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You need **Manage Server** permission.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    const role =
+                        interaction.options.getRole(
+                            "staff_role"
+                        );
+
+                    if (!role) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ Please select a role.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    if (role.id === interaction.guild.id) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You cannot use @everyone.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    if (role.managed) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You cannot use a managed role.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    db.setSpecialGiveawayConfig(
+                        interaction.guild.id,
+                        role.id
+                    );
+
+                    return interaction.reply({
+
+                        content:
+                            `✅ **Special Giveaway system configured!**\n\n` +
+                            `🎭 Special Giveaway Staff Role: ${role}\n\n` +
+                            `Members with this role can now use **/specialgiveaway**.`,
+
+                        ephemeral: true
+                    });
+                }
+
+                // -------------------------------------
+                // NORMAL GIVEAWAY
+                // -------------------------------------
+
+                if (
+                    interaction.commandName ===
+                    "giveaway"
+                ) {
+
+                    if (
+                        !isGiveawayStaff(
+                            interaction
+                        )
+                    ) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You do not have permission to create giveaways.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    await createGiveawayFromCommand(
+                        interaction,
+                        false
+                    );
 
                     return;
-
                 }
+
+                // -------------------------------------
+                // SPECIAL GIVEAWAY
+                // -------------------------------------
 
                 if (
-                    !isGiveawayStaff(
-                        interaction
-                    )
+                    interaction.commandName ===
+                    "specialgiveaway"
                 ) {
 
-                    return interaction.reply({
+                    if (
+                        !isSpecialGiveawayStaff(
+                            interaction
+                        )
+                    ) {
 
-                        content:
-                            "❌ You do not have permission to create or manage giveaways.",
+                        return interaction.reply({
 
-                        ephemeral: true
+                            content:
+                                "❌ You do not have permission to create special giveaways.\n\nAsk a server administrator to configure **/setup-special-giveaway**.",
 
-                    });
+                            ephemeral: true
+                        });
+                    }
 
+                    await createGiveawayFromCommand(
+                        interaction,
+                        true
+                    );
+
+                    return;
                 }
-
-                const isSpecialGiveaway =
-                    interaction.commandName === "specialgiveaway";
-
-                const specialRole =
-                    isSpecialGiveaway
-                        ? interaction.options.getRole("special_role")
-                        : null;
-
-                if (
-                    isSpecialGiveaway &&
-                    !specialRole
-                ) {
-
-                    return interaction.reply({
-
-                        content:
-                            "❌ Please select a special role.",
-
-                        ephemeral: true
-
-                    });
-
-                }
-
-                if (
-                    isSpecialGiveaway &&
-                    specialRole.id === interaction.guild.id
-                ) {
-
-                    return interaction.reply({
-
-                        content:
-                            "❌ You cannot use **@everyone** as the special role.",
-
-                        ephemeral: true
-
-                    });
-
-                }
-
-                if (
-                    isSpecialGiveaway &&
-                    specialRole.managed
-                ) {
-
-                    return interaction.reply({
-
-                        content:
-                            "❌ You cannot use a managed or integration role as the special role.",
-
-                        ephemeral: true
-
-                    });
-
-                }
-
-                const robux =
-                    interaction.options.getInteger(
-                        "robux"
-                    );
-
-                const durationInput =
-                    interaction.options.getString(
-                        "duration"
-                    );
-
-                const winners =
-                    interaction.options.getInteger(
-                        "winners"
-                    );
-
-                const ping =
-                    interaction.options.getBoolean(
-                        "ping"
-                    );
-
-                const duration =
-                    parseDuration(
-                        durationInput
-                    );
-
-                if (!duration) {
-
-                    return interaction.reply({
-
-                        content:
-                            "❌ **Invalid duration!**\n\n" +
-                            "Examples:\n" +
-                            "`1m` = 1 minute\n" +
-                            "`30m` = 30 minutes\n" +
-                            "`1h` = 1 hour\n" +
-                            "`12h` = 12 hours\n" +
-                            "`1d` = 1 day\n" +
-                            "`3d` = 3 days\n" +
-                            "`1w` = 1 week\n\n" +
-                            "⏱️ Minimum: **1 minute**\n" +
-                            "⏱️ Maximum: **1 week**",
-
-                        ephemeral: true
-
-                    });
-
-                }
-
-                const giveawayId =
-                    `${interaction.guild.id}-${Date.now()}`;
-
-                const endTime =
-                    Date.now() +
-                    duration * 1000;
-
-                db.createGiveaway({
-
-                    id:
-                        giveawayId,
-
-                    guildId:
-                        interaction.guild.id,
-
-                    channelId:
-                        interaction.channel.id,
-
-                    messageId:
-                        null,
-
-                    robux:
-                        robux,
-
-                    winners:
-                        winners,
-
-                    endTime:
-                        endTime,
-
-                    hostId:
-                        interaction.user.id,
-
-                    specialRoleId:
-                        specialRole
-                            ? specialRole.id
-                            : null
-
-                });
-
-                const giveaway = {
-
-                    id:
-                        giveawayId,
-
-                    guildId:
-                        interaction.guild.id,
-
-                    channelId:
-                        interaction.channel.id,
-
-                    messageId:
-                        null,
-
-                    robux:
-                        robux,
-
-                    winners:
-                        winners,
-
-                    endTime:
-                        endTime,
-
-                    hostId:
-                        interaction.user.id,
-
-                    specialRoleId:
-                        specialRole
-                            ? specialRole.id
-                            : null
-
-                };
-
-                const embed =
-                    createGiveawayEmbed(
-                        giveaway,
-                        0
-                    );
-
-                const row =
-                    createGiveawayButtons(
-                        giveawayId
-                    );
-
-                const message =
-                    await interaction.channel.send({
-
-                        content:
-                            ping
-                                ? "@everyone"
-                                : "",
-
-                        embeds: [
-                            embed
-                        ],
-
-                        components: [
-                            row
-                        ],
-
-                        allowedMentions: {
-
-                            parse:
-                                ping
-                                    ? ["everyone"]
-                                    : [],
-
-                            roles:
-                                specialRole
-                                    ? [specialRole.id]
-                                    : []
-
-                        }
-
-                    });
-
-                db.updateMessageId(
-                    giveawayId,
-                    message.id
-                );
-
-                await interaction.reply({
-
-                    content:
-                        `✅ **${isSpecialGiveaway ? "Special giveaway" : "Giveaway"} created!**\n\n` +
-                        `💰 Prize: **${robux.toLocaleString()} Robux**\n` +
-                        `⏱️ Duration: **${durationInput}**\n` +
-                        `🏆 Winners: **${winners}**` +
-                        (
-                            specialRole
-                                ? `\n🎭 Special Role: ${specialRole}`
-                                : ""
-                        ),
-
-                    ephemeral: true
-
-                });
-
-                scheduleGiveaway(
-                    giveawayId,
-                    endTime
-                );
-
-                return;
-
             }
+
+            // =========================================
+            // BUTTONS
+            // =========================================
 
             if (
                 interaction.isButton()
             ) {
+
+                // -------------------------------------
+                // JOIN
+                // -------------------------------------
 
                 if (
                     interaction.customId.startsWith(
@@ -850,9 +841,7 @@ client.on(
                                 "❌ This giveaway has ended.",
 
                             ephemeral: true
-
                         });
-
                     }
 
                     if (
@@ -870,11 +859,10 @@ client.on(
                                 "❌ This giveaway has ended.",
 
                             ephemeral: true
-
                         });
-
                     }
 
+                    // Special role check
                     if (
                         giveaway.specialRoleId &&
                         !interaction.member.roles.cache.has(
@@ -885,12 +873,11 @@ client.on(
                         return interaction.reply({
 
                             content:
-                                `❌ You cannot join this giveaway.\n\nYou need the <@&${giveaway.specialRoleId}> role to participate.`,
+                                `❌ You cannot join this giveaway.\n\n` +
+                                `You need the <@&${giveaway.specialRoleId}> role to participate.`,
 
                             ephemeral: true
-
                         });
-
                     }
 
                     const participants =
@@ -905,19 +892,15 @@ client.on(
                                 interaction.user.id
                         );
 
-                    if (
-                        alreadyJoined
-                    ) {
+                    if (alreadyJoined) {
 
                         return interaction.reply({
 
                             content:
-                                "⚠️ You are already participating!",
+                                "⚠️ You are already participating in this giveaway.",
 
                             ephemeral: true
-
                         });
-
                     }
 
                     const modal =
@@ -931,7 +914,7 @@ client.on(
                                 "🎉 Join Giveaway"
                             );
 
-                    const usernameInput =
+                    const input =
                         new TextInputBuilder()
 
                             .setCustomId(
@@ -962,23 +945,21 @@ client.on(
                                 20
                             );
 
-                    const inputRow =
-                        new ActionRowBuilder()
-                            .addComponents(
-                                usernameInput
-                            );
-
                     modal.addComponents(
-                        inputRow
+
+                        new ActionRowBuilder()
+                            .addComponents(input)
+
                     );
 
-                    await interaction.showModal(
+                    return interaction.showModal(
                         modal
                     );
-
-                    return;
-
                 }
+
+                // -------------------------------------
+                // END
+                // -------------------------------------
 
                 if (
                     interaction.customId.startsWith(
@@ -986,30 +967,6 @@ client.on(
                     )
                 ) {
 
-                    const giveawayId =
-                        interaction.customId.replace(
-                            "end_",
-                            ""
-                        );
-
-                    const giveaway =
-                        db.getGiveaway(
-                            giveawayId
-                        );
-
-                    if (!giveaway) {
-
-                        return interaction.reply({
-
-                            content:
-                                "❌ Giveaway not found.",
-
-                            ephemeral: true
-
-                        });
-
-                    }
-
                     if (
                         !isGiveawayStaff(
                             interaction
@@ -1019,34 +976,36 @@ client.on(
                         return interaction.reply({
 
                             content:
-                                "❌ You do not have permission to manage this giveaway.",
+                                "❌ You do not have permission to end giveaways.",
 
                             ephemeral: true
-
                         });
-
                     }
 
+                    const giveawayId =
+                        interaction.customId.replace(
+                            "end_",
+                            ""
+                        );
+
                     await interaction.deferReply({
-
                         ephemeral: true
-
                     });
 
                     await endGiveaway(
                         giveawayId
                     );
 
-                    await interaction.editReply({
+                    return interaction.editReply({
 
                         content:
                             "🛑 **Giveaway ended successfully!**"
-
                     });
-
-                    return;
-
                 }
+
+                // -------------------------------------
+                // REROLL
+                // -------------------------------------
 
                 if (
                     interaction.customId.startsWith(
@@ -1054,30 +1013,6 @@ client.on(
                     )
                 ) {
 
-                    const giveawayId =
-                        interaction.customId.replace(
-                            "reroll_",
-                            ""
-                        );
-
-                    const giveaway =
-                        db.getGiveaway(
-                            giveawayId
-                        );
-
-                    if (!giveaway) {
-
-                        return interaction.reply({
-
-                            content:
-                                "❌ Giveaway not found.",
-
-                            ephemeral: true
-
-                        });
-
-                    }
-
                     if (
                         !isGiveawayStaff(
                             interaction
@@ -1087,223 +1022,30 @@ client.on(
                         return interaction.reply({
 
                             content:
-                                "❌ You do not have permission to manage this giveaway.",
+                                "❌ You do not have permission to reroll giveaways.",
 
                             ephemeral: true
-
                         });
-
                     }
 
-                    const participants =
-                        db.getParticipants(
-                            giveawayId
+                    const giveawayId =
+                        interaction.customId.replace(
+                            "reroll_",
+                            ""
                         );
 
-                    const previousWinners =
-                        db.getWinners(
-                            giveawayId
-                        );
-
-                    const previousWinnerIds =
-                        previousWinners.map(
-                            winner =>
-                                winner.discordId
-                        );
-
-                    const available =
-                        participants.filter(
-                            participant =>
-                                !previousWinnerIds.includes(
-                                    participant.discordId
-                                )
-                        );
-
-                    if (
-                        available.length === 0
-                    ) {
-
-                        return interaction.reply({
-
-                            content:
-                                "❌ There are no other participants available for a reroll.",
-
-                            ephemeral: true
-
-                        });
-
-                    }
-
-                    const newWinner =
-                        available[
-                            Math.floor(
-                                Math.random() *
-                                available.length
-                            )
-                        ];
-
-                    db.addWinner({
-
-                        giveawayId:
-                            giveawayId,
-
-                        discordId:
-                            newWinner.discordId,
-
-                        discordTag:
-                            newWinner.discordTag,
-
-                        robloxUsername:
-                            newWinner.robloxUsername
-
-                    });
-
-                    try {
-
-                        const ticketResult =
-                            await sendWinnerToTicketBot({
-
-                                giveawayId:
-                                    giveawayId,
-
-                                guildId:
-                                    giveaway.guildId,
-
-                                discordId:
-                                    newWinner.discordId,
-
-                                discordTag:
-                                    newWinner.discordTag,
-
-                                robloxUsername:
-                                    newWinner.robloxUsername,
-
-                                robux:
-                                    giveaway.robux
-
-                            });
-
-                        console.log(
-                            `🎫 Ticket created for reroll winner ${newWinner.discordTag}`
-                        );
-
-                        console.log(
-                            `📁 Channel ID: ${ticketResult.channelId}`
-                        );
-
-                    } catch (error) {
-
-                        console.error(
-                            `❌ Could not create ticket for reroll winner ${newWinner.discordTag}:`,
-                            error.message
-                        );
-
-                    }
-
-                    const channel =
-                        await client.channels.fetch(
-                            giveaway.channelId
-                        );
-
-                    const message =
-                        await channel.messages.fetch(
-                            giveaway.messageId
-                        );
-
-                    const winners =
-                        db.getWinners(
-                            giveawayId
-                        );
-
-                    const winnerText =
-                        winners
-                            .map(
-                                winner =>
-                                    `🏆 <@${winner.discordId}> — **${winner.robloxUsername}**`
-                            )
-                            .join("\n");
-
-                    const embed =
-                        EmbedBuilder.from(
-                            message.embeds[0]
-                        );
-
-                    embed.setDescription(
-
-                        `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
-
-                        `🏆 **Winner(s):**\n` +
-
-                        `${winnerText}\n\n` +
-
-                        `👥 Participants: **${participants.length}**\n\n` +
-
-                        `🔄 **Winner rerolled!**\n\n` +
-
-                        `🎊 Congratulations!`
-
+                    await rerollGiveaway(
+                        interaction,
+                        giveawayId
                     );
 
-                    const rerollButton =
-                        new ButtonBuilder()
-
-                            .setCustomId(
-                                `reroll_${giveawayId}`
-                            )
-
-                            .setLabel(
-                                "Reroll Winner"
-                            )
-
-                            .setEmoji(
-                                "🔄"
-                            )
-
-                            .setStyle(
-                                ButtonStyle.Primary
-                            );
-
-                    const rerollRow =
-                        new ActionRowBuilder()
-                            .addComponents(
-                                rerollButton
-                            );
-
-                    await message.edit({
-
-                        content:
-                            winners
-                                .map(
-                                    winner =>
-                                        `<@${winner.discordId}>`
-                                )
-                                .join(" "),
-
-                        embeds: [
-                            embed
-                        ],
-
-                        components: [
-                            rerollRow
-                        ]
-
-                    });
-
-                    await interaction.reply({
-
-                        content:
-                            `🔄 **Reroll complete!**\n\n` +
-                            `🏆 New winner: <@${newWinner.discordId}>`,
-
-                        ephemeral: true
-
-                    });
-
                     return;
-
                 }
-
             }
+
+            // =========================================
+            // MODALS
+            // =========================================
 
             if (
                 interaction.isModalSubmit()
@@ -1337,31 +1079,10 @@ client.on(
                                 "❌ This giveaway has ended.",
 
                             ephemeral: true
-
                         });
-
                     }
 
-                    if (
-                        Date.now() >=
-                        giveaway.endTime
-                    ) {
-
-                        await endGiveaway(
-                            giveawayId
-                        );
-
-                        return interaction.reply({
-
-                            content:
-                                "❌ This giveaway has ended.",
-
-                            ephemeral: true
-
-                        });
-
-                    }
-
+                    // Check special role again
                     if (
                         giveaway.specialRoleId &&
                         !interaction.member.roles.cache.has(
@@ -1372,12 +1093,11 @@ client.on(
                         return interaction.reply({
 
                             content:
-                                `❌ You cannot join this giveaway.\n\nYou need the <@&${giveaway.specialRoleId}> role to participate.`,
+                                `❌ You cannot join this giveaway.\n\n` +
+                                `You need the <@&${giveaway.specialRoleId}> role to participate.`,
 
                             ephemeral: true
-
                         });
-
                     }
 
                     const username =
@@ -1403,18 +1123,15 @@ client.on(
                         return interaction.reply({
 
                             content:
-                                "⚠️ You are already entered!",
+                                "⚠️ You are already entered.",
 
                             ephemeral: true
-
                         });
-
                     }
 
                     db.addParticipant({
 
-                        giveawayId:
-                            giveawayId,
+                        giveawayId,
 
                         discordId:
                             interaction.user.id,
@@ -1424,10 +1141,9 @@ client.on(
 
                         robloxUsername:
                             username
-
                     });
 
-                    const newCount =
+                    const count =
                         db.getParticipants(
                             giveawayId
                         ).length;
@@ -1437,20 +1153,17 @@ client.on(
                         content:
                             `🎉 **You're in!**\n\n` +
                             `👤 Roblox: **${username}**\n` +
-                            `💰 Prize: **${giveaway.robux.toLocaleString()} Robux**\n\n` +
-                            `👥 Participants: **${newCount}**\n\n` +
+                            `💰 Prize: **${giveaway.robux.toLocaleString()} Robux**\n` +
+                            `👥 Participants: **${count}**\n\n` +
                             `🍀 Good luck!`,
 
                         ephemeral: true
-
                     });
 
                     await updateGiveawayMessage(
                         giveawayId
                     );
-
                 }
-
             }
 
         } catch (error) {
@@ -1460,10 +1173,254 @@ client.on(
                 error
             );
 
-        }
+            try {
 
+                if (interaction.replied) {
+
+                    await interaction.followUp({
+
+                        content:
+                            "❌ An error occurred. Please try again.",
+
+                        ephemeral: true
+                    });
+
+                } else if (
+                    interaction.deferred
+                ) {
+
+                    await interaction.editReply({
+
+                        content:
+                            "❌ An error occurred. Please try again."
+                    });
+
+                } else {
+
+                    await interaction.reply({
+
+                        content:
+                            "❌ An error occurred. Please try again.",
+
+                        ephemeral: true
+                    });
+                }
+
+            } catch {}
+        }
     }
 );
+
+// =====================================================
+// CREATE GIVEAWAY
+// =====================================================
+
+async function createGiveawayFromCommand(
+    interaction,
+    isSpecial
+) {
+
+    const robux =
+        interaction.options.getInteger(
+            "robux"
+        );
+
+    const durationInput =
+        interaction.options.getString(
+            "duration"
+        );
+
+    const winners =
+        interaction.options.getInteger(
+            "winners"
+        );
+
+    const ping =
+        interaction.options.getBoolean(
+            "ping"
+        );
+
+    const duration =
+        parseDuration(
+            durationInput
+        );
+
+    if (!duration) {
+
+        return interaction.reply({
+
+            content:
+                "❌ Invalid duration.\n\n" +
+                "Examples: `1m`, `30m`, `1h`, `12h`, `1d`, `3d`, `1w`.\n\n" +
+                "Minimum: **1 minute**\n" +
+                "Maximum: **1 week**",
+
+            ephemeral: true
+        });
+    }
+
+    let specialRole = null;
+
+    if (isSpecial) {
+
+        specialRole =
+            interaction.options.getRole(
+                "special_role"
+            );
+
+        if (!specialRole) {
+
+            return interaction.reply({
+
+                content:
+                    "❌ Please select the role allowed to join this giveaway.",
+
+                ephemeral: true
+            });
+        }
+
+        if (
+            specialRole.id ===
+            interaction.guild.id
+        ) {
+
+            return interaction.reply({
+
+                content:
+                    "❌ You cannot use @everyone as the special giveaway role.",
+
+                ephemeral: true
+            });
+        }
+
+        if (specialRole.managed) {
+
+            return interaction.reply({
+
+                content:
+                    "❌ You cannot use a managed or integration role as the special giveaway role.",
+
+                ephemeral: true
+            });
+        }
+    }
+
+    const giveawayId =
+        `${interaction.guild.id}-${Date.now()}`;
+
+    const endTime =
+        Date.now() +
+        duration * 1000;
+
+    const giveaway = {
+
+        id:
+            giveawayId,
+
+        guildId:
+            interaction.guild.id,
+
+        channelId:
+            interaction.channel.id,
+
+        messageId:
+            null,
+
+        robux,
+
+        winners,
+
+        endTime,
+
+        hostId:
+            interaction.user.id,
+
+        specialRoleId:
+            specialRole
+                ? specialRole.id
+                : null
+    };
+
+    db.createGiveaway(
+        giveaway
+    );
+
+    const embed =
+        createGiveawayEmbed(
+            giveaway,
+            0
+        );
+
+    const buttons =
+        createGiveawayButtons(
+            giveawayId
+        );
+
+    const message =
+        await interaction.channel.send({
+
+            content:
+                ping
+                    ? "@everyone"
+                    : "",
+
+            embeds: [
+                embed
+            ],
+
+            components: [
+                buttons
+            ],
+
+            allowedMentions: {
+
+                parse:
+                    ping
+                        ? ["everyone"]
+                        : [],
+
+                roles:
+                    specialRole
+                        ? [specialRole.id]
+                        : []
+            }
+        });
+
+    db.updateMessageId(
+        giveawayId,
+        message.id
+    );
+
+    await interaction.reply({
+
+        content:
+
+            `✅ **${isSpecial ? "Special giveaway" : "Giveaway"} created!**\n\n` +
+
+            `💰 Prize: **${robux.toLocaleString()} Robux**\n` +
+
+            `⏱️ Duration: **${durationInput}**\n` +
+
+            `🏆 Winners: **${winners}**` +
+
+            (
+                specialRole
+                    ? `\n🎭 Required Role: ${specialRole}`
+                    : ""
+            ),
+
+        ephemeral: true
+    });
+
+    scheduleGiveaway(
+        giveawayId,
+        endTime
+    );
+}
+
+// =====================================================
+// UPDATE GIVEAWAY MESSAGE
+// =====================================================
 
 async function updateGiveawayMessage(
     giveawayId
@@ -1478,9 +1435,7 @@ async function updateGiveawayMessage(
         !giveaway ||
         giveaway.ended
     ) {
-
         return;
-
     }
 
     try {
@@ -1511,33 +1466,265 @@ async function updateGiveawayMessage(
             embeds: [
                 embed
             ]
-
         });
 
     } catch (error) {
 
         console.error(
             "❌ Could not update giveaway:",
-            error
+            error.message
+        );
+    }
+}
+
+// =====================================================
+// END GIVEAWAY
+// =====================================================
+
+async function endGiveaway(
+    giveawayId
+) {
+
+    const giveaway =
+        db.getGiveaway(
+            giveawayId
         );
 
+    if (!giveaway) {
+        return;
     }
 
+    if (giveaway.ended) {
+        return;
+    }
+
+    const participants =
+        db.getParticipants(
+            giveawayId
+        );
+
+    db.endGiveaway(
+        giveawayId
+    );
+
+    try {
+
+        const channel =
+            await client.channels.fetch(
+                giveaway.channelId
+            );
+
+        const message =
+            await channel.messages.fetch(
+                giveaway.messageId
+            );
+
+        // -----------------------------------------
+        // NO PARTICIPANTS
+        // -----------------------------------------
+
+        if (
+            participants.length === 0
+        ) {
+
+            const embed =
+                new EmbedBuilder()
+
+                    .setTitle(
+                        "😔 Giveaway Ended"
+                    )
+
+                    .setDescription(
+
+                        `💰 Prize: **${giveaway.robux.toLocaleString()} Robux**\n\n` +
+
+                        `❌ Nobody entered the giveaway.`
+                    )
+
+                    .setTimestamp();
+
+            await message.edit({
+
+                content: "",
+
+                embeds: [
+                    embed
+                ],
+
+                components: []
+            });
+
+            return;
+        }
+
+        // -----------------------------------------
+        // PICK WINNERS
+        // -----------------------------------------
+
+        let winners =
+            db.getWinners(
+                giveawayId
+            );
+
+        if (
+            winners.length === 0
+        ) {
+
+            const shuffled =
+                [...participants].sort(
+                    () =>
+                        Math.random() - 0.5
+                );
+
+            const selected =
+                shuffled.slice(
+
+                    0,
+
+                    Math.min(
+                        giveaway.winners,
+                        participants.length
+                    )
+                );
+
+            for (
+                const winner of selected
+            ) {
+
+                db.addWinner({
+
+                    giveawayId,
+
+                    discordId:
+                        winner.discordId,
+
+                    discordTag:
+                        winner.discordTag,
+
+                    robloxUsername:
+                        winner.robloxUsername
+                });
+            }
+
+            winners =
+                db.getWinners(
+                    giveawayId
+                );
+        }
+
+        // -----------------------------------------
+        // CREATE TICKETS
+        // -----------------------------------------
+
+        await createTicketsForWinners(
+            giveaway,
+            winners
+        );
+
+        // -----------------------------------------
+        // WINNER MESSAGE
+        // -----------------------------------------
+
+        const winnerText =
+            winners
+                .map(
+                    winner =>
+                        `🏆 <@${winner.discordId}> — **${winner.robloxUsername}**`
+                )
+                .join("\n");
+
+        const embed =
+            new EmbedBuilder()
+
+                .setTitle(
+                    "🎉 GIVEAWAY ENDED!"
+                )
+
+                .setDescription(
+
+                    `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
+                    `🏆 **Winner(s):**\n` +
+
+                    `${winnerText}\n\n` +
+
+                    `👥 Participants: **${participants.length}**\n\n` +
+
+                    `🎊 Congratulations!`
+                )
+
+                .setFooter({
+                    text:
+                        "Roblox Giveaway • Ended"
+                })
+
+                .setTimestamp();
+
+        const rerollButton =
+            new ButtonBuilder()
+
+                .setCustomId(
+                    `reroll_${giveawayId}`
+                )
+
+                .setLabel(
+                    "Reroll Winner"
+                )
+
+                .setEmoji(
+                    "🔄"
+                )
+
+                .setStyle(
+                    ButtonStyle.Primary
+                );
+
+        const row =
+            new ActionRowBuilder()
+                .addComponents(
+                    rerollButton
+                );
+
+        await message.edit({
+
+            content:
+                winners
+                    .map(
+                        winner =>
+                            `<@${winner.discordId}>`
+                    )
+                    .join(" "),
+
+            embeds: [
+                embed
+            ],
+
+            components: [
+                row
+            ]
+        });
+
+        console.log(
+            `🏆 Giveaway ${giveawayId} ended.`
+        );
+
+    } catch (error) {
+
+        console.error(
+            "❌ Giveaway ending error:",
+            error
+        );
+    }
 }
+
+// =====================================================
+// CREATE TICKETS
+// =====================================================
 
 async function createTicketsForWinners(
     giveaway,
     winners
 ) {
-
-    if (
-        !winners ||
-        winners.length === 0
-    ) {
-
-        return;
-
-    }
 
     for (
         const winner of winners
@@ -1565,31 +1752,34 @@ async function createTicketsForWinners(
 
                     robux:
                         giveaway.robux
-
                 });
 
             console.log(
                 `🎫 Ticket created for ${winner.discordTag}`
             );
 
-            console.log(
-                `📁 Channel ID: ${result.channelId}`
-            );
+            if (result.channelId) {
+
+                console.log(
+                    `📁 Ticket Channel: ${result.channelId}`
+                );
+            }
 
         } catch (error) {
 
             console.error(
-                `❌ Could not create ticket for ${winner.discordTag}:`,
-                error.message
+                `❌ Could not create ticket for ${winner.discordTag}: ${error.message}`
             );
-
         }
-
     }
-
 }
 
-async function endGiveaway(
+// =====================================================
+// REROLL
+// =====================================================
+
+async function rerollGiveaway(
+    interaction,
     giveawayId
 ) {
 
@@ -1600,14 +1790,13 @@ async function endGiveaway(
 
     if (!giveaway) {
 
-        return;
+        return interaction.reply({
 
-    }
+            content:
+                "❌ Giveaway not found.",
 
-    if (giveaway.ended) {
-
-        return;
-
+            ephemeral: true
+        });
     }
 
     const participants =
@@ -1615,243 +1804,190 @@ async function endGiveaway(
             giveawayId
         );
 
-    db.endGiveaway(
-        giveawayId
-    );
+    const previousWinners =
+        db.getWinners(
+            giveawayId
+        );
+
+    const previousIds =
+        previousWinners.map(
+            winner =>
+                winner.discordId
+        );
+
+    const available =
+        participants.filter(
+            participant =>
+                !previousIds.includes(
+                    participant.discordId
+                )
+        );
+
+    if (
+        available.length === 0
+    ) {
+
+        return interaction.reply({
+
+            content:
+                "❌ There are no other participants available for a reroll.",
+
+            ephemeral: true
+        });
+    }
+
+    const newWinner =
+        available[
+            Math.floor(
+                Math.random() *
+                available.length
+            )
+        ];
+
+    db.addWinner({
+
+        giveawayId,
+
+        discordId:
+            newWinner.discordId,
+
+        discordTag:
+            newWinner.discordTag,
+
+        robloxUsername:
+            newWinner.robloxUsername
+    });
 
     try {
 
-        const channel =
-            await client.channels.fetch(
-                giveaway.channelId
-            );
+        await sendWinnerToTicketBot({
 
-        const message =
-            await channel.messages.fetch(
-                giveaway.messageId
-            );
+            giveawayId,
 
-        if (
-            participants.length === 0
-        ) {
+            guildId:
+                giveaway.guildId,
 
-            const embed =
-                new EmbedBuilder()
+            discordId:
+                newWinner.discordId,
 
-                    .setTitle(
-                        "😔 Giveaway Ended"
-                    )
+            discordTag:
+                newWinner.discordTag,
 
-                    .setDescription(
+            robloxUsername:
+                newWinner.robloxUsername,
 
-                        `💰 Prize: **${giveaway.robux.toLocaleString()} Robux**\n\n` +
-
-                        `❌ Nobody entered the giveaway.`
-
-                    )
-
-                    .setTimestamp();
-
-            await message.edit({
-
-                content: "",
-
-                embeds: [
-                    embed
-                ],
-
-                components: []
-
-            });
-
-            return;
-
-        }
-
-        const existingWinners =
-            db.getWinners(
-                giveawayId
-            );
-
-        if (
-            existingWinners.length === 0
-        ) {
-
-            const shuffled =
-                [...participants].sort(
-                    () =>
-                        Math.random() - 0.5
-                );
-
-            const selected =
-                shuffled.slice(
-
-                    0,
-
-                    Math.min(
-                        giveaway.winners,
-                        participants.length
-                    )
-
-                );
-
-            for (
-                const winner of selected
-            ) {
-
-                db.addWinner({
-
-                    giveawayId:
-                        giveawayId,
-
-                    discordId:
-                        winner.discordId,
-
-                    discordTag:
-                        winner.discordTag,
-
-                    robloxUsername:
-                        winner.robloxUsername
-
-                });
-
-            }
-
-        }
-
-        const winners =
-            db.getWinners(
-                giveawayId
-            );
-
-        await createTicketsForWinners(
-
-            giveaway,
-
-            winners
-
-        );
-
-        const winnerText =
-            winners
-
-                .map(
-
-                    winner =>
-                        `🏆 <@${winner.discordId}> — **${winner.robloxUsername}**`
-
-                )
-
-                .join("\n");
-
-        const embed =
-            new EmbedBuilder()
-
-                .setTitle(
-                    "🎉 GIVEAWAY ENDED!"
-                )
-
-                .setDescription(
-
-                    `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
-
-                    `🏆 **Winner(s):**\n` +
-
-                    `${winnerText}\n\n` +
-
-                    `👥 Participants: **${participants.length}**\n\n` +
-
-                    `🎊 Congratulations!`
-
-                )
-
-                .setFooter({
-
-                    text:
-                        "Roblox Giveaway • Ended"
-
-                })
-
-                .setTimestamp();
-
-        const rerollButton =
-            new ButtonBuilder()
-
-                .setCustomId(
-
-                    `reroll_${giveawayId}`
-
-                )
-
-                .setLabel(
-
-                    "Reroll Winner"
-
-                )
-
-                .setEmoji(
-                    "🔄"
-                )
-
-                .setStyle(
-
-                    ButtonStyle.Primary
-
-                );
-
-        const row =
-            new ActionRowBuilder()
-
-                .addComponents(
-
-                    rerollButton
-
-                );
-
-        await message.edit({
-
-            content:
-
-                winners
-
-                    .map(
-
-                        winner =>
-                            `<@${winner.discordId}>`
-
-                    )
-
-                    .join(" "),
-
-            embeds: [
-                embed
-            ],
-
-            components: [
-                row
-            ]
-
+            robux:
+                giveaway.robux
         });
-
-        console.log(
-
-            `🏆 Giveaway ${giveawayId} ended successfully.`
-
-        );
 
     } catch (error) {
 
         console.error(
-
-            "❌ Giveaway ending error:",
-
-            error
-
+            `❌ Could not create reroll ticket for ${newWinner.discordTag}:`,
+            error.message
         );
-
     }
 
+    const channel =
+        await client.channels.fetch(
+            giveaway.channelId
+        );
+
+    const message =
+        await channel.messages.fetch(
+            giveaway.messageId
+        );
+
+    const winners =
+        db.getWinners(
+            giveawayId
+        );
+
+    const winnerText =
+        winners
+            .map(
+                winner =>
+                    `🏆 <@${winner.discordId}> — **${winner.robloxUsername}**`
+            )
+            .join("\n");
+
+    const embed =
+        new EmbedBuilder()
+
+            .setTitle(
+                "🎉 GIVEAWAY ENDED!"
+            )
+
+            .setDescription(
+
+                `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
+                `🏆 **Winner(s):**\n` +
+
+                `${winnerText}\n\n` +
+
+                `👥 Participants: **${participants.length}**\n\n` +
+
+                `🔄 Winner rerolled!`
+
+            )
+
+            .setTimestamp();
+
+    const button =
+        new ButtonBuilder()
+
+            .setCustomId(
+                `reroll_${giveawayId}`
+            )
+
+            .setLabel(
+                "Reroll Winner"
+            )
+
+            .setEmoji(
+                "🔄"
+            )
+
+            .setStyle(
+                ButtonStyle.Primary
+            );
+
+    await message.edit({
+
+        content:
+            winners
+                .map(
+                    winner =>
+                        `<@${winner.discordId}>`
+                )
+                .join(" "),
+
+        embeds: [
+            embed
+        ],
+
+        components: [
+
+            new ActionRowBuilder()
+                .addComponents(button)
+
+        ]
+    });
+
+    return interaction.reply({
+
+        content:
+            `🔄 **Reroll complete!**\n\n` +
+            `🏆 New winner: <@${newWinner.discordId}>`,
+
+        ephemeral: true
+    });
 }
+
+// =====================================================
+// SCHEDULE
+// =====================================================
 
 function scheduleGiveaway(
     giveawayId,
@@ -1870,11 +2006,9 @@ function scheduleGiveaway(
         );
 
         return;
-
     }
 
     setTimeout(
-
         () => {
 
             endGiveaway(
@@ -1882,26 +2016,25 @@ function scheduleGiveaway(
             );
 
         },
-
         remaining
-
     );
-
 }
+
+// =====================================================
+// RESTORE GIVEAWAYS
+// =====================================================
 
 async function restoreGiveaways() {
 
-    const activeGiveaways =
+    const giveaways =
         db.getActiveGiveaways();
 
     console.log(
-
-        `📦 Found ${activeGiveaways.length} active giveaway(s).`
-
+        `📦 Found ${giveaways.length} active giveaway(s).`
     );
 
     for (
-        const giveaway of activeGiveaways
+        const giveaway of giveaways
     ) {
 
         if (
@@ -1909,64 +2042,55 @@ async function restoreGiveaways() {
             giveaway.endTime
         ) {
 
-            console.log(
-
-                `⏰ Giveaway ${giveaway.id} already expired. Ending...`
-
-            );
-
             await endGiveaway(
                 giveaway.id
             );
 
-            continue;
+        } else {
 
+            scheduleGiveaway(
+                giveaway.id,
+                giveaway.endTime
+            );
+
+            await updateGiveawayMessage(
+                giveaway.id
+            );
         }
-
-        scheduleGiveaway(
-
-            giveaway.id,
-
-            giveaway.endTime
-
-        );
-
-        await updateGiveawayMessage(
-
-            giveaway.id
-
-        );
-
     }
-
 }
+
+// =====================================================
+// TICKET BOT API
+// =====================================================
 
 async function sendWinnerToTicketBot(
     data
 ) {
 
     const apiUrl =
-        process.env.TICKET_API_URL ||
-        "http://127.0.0.1:3001";
+        process.env.TICKET_API_URL;
 
     const apiSecret =
         process.env.TICKET_API_SECRET;
 
+    if (!apiUrl) {
+
+        throw new Error(
+            "TICKET_API_URL is missing."
+        );
+    }
+
     if (!apiSecret) {
 
         throw new Error(
-
-            "TICKET_API_SECRET is missing from .env"
-
+            "TICKET_API_SECRET is missing."
         );
-
     }
 
     const response =
         await fetch(
-
             `${apiUrl}/internal/giveaway-winner`,
-
             {
 
                 method:
@@ -1979,33 +2103,30 @@ async function sendWinnerToTicketBot(
 
                     "x-api-secret":
                         apiSecret
-
                 },
 
-                body: JSON.stringify({
+                body:
+                    JSON.stringify({
 
-                    giveawayId:
-                        data.giveawayId,
+                        giveawayId:
+                            data.giveawayId,
 
-                    guildId:
-                        data.guildId,
+                        guildId:
+                            data.guildId,
 
-                    discordId:
-                        data.discordId,
+                        discordId:
+                            data.discordId,
 
-                    discordTag:
-                        data.discordTag,
+                        discordTag:
+                            data.discordTag,
 
-                    robloxUsername:
-                        data.robloxUsername,
+                        robloxUsername:
+                            data.robloxUsername,
 
-                    robux:
-                        data.robux
-
-                })
-
+                        robux:
+                            data.robux
+                    })
             }
-
         );
 
     const text =
@@ -2023,12 +2144,8 @@ async function sendWinnerToTicketBot(
     } catch {
 
         result = {
-
-            message:
-                text
-
+            message: text
         };
-
     }
 
     if (
@@ -2038,13 +2155,9 @@ async function sendWinnerToTicketBot(
         throw new Error(
 
             result.error ||
-
             result.message ||
-
             `Ticket Bot returned HTTP ${response.status}`
-
         );
-
     }
 
     if (
@@ -2054,16 +2167,16 @@ async function sendWinnerToTicketBot(
         throw new Error(
 
             result.error ||
-
             "Ticket Bot rejected the request."
-
         );
-
     }
 
     return result;
-
 }
+
+// =====================================================
+// START
+// =====================================================
 
 async function start() {
 
@@ -2072,25 +2185,21 @@ async function start() {
     ) {
 
         console.error(
-
-            "❌ TOKEN is missing from .env"
-
+            "❌ GIVEAWAY_BOT_TOKEN is missing."
         );
 
         process.exit(1);
-
     }
 
     if (
         !process.env.TICKET_API_URL
     ) {
 
-        console.warn(
-
-            "⚠️ TICKET_API_URL is missing. Using http://127.0.0.1:3001"
-
+        console.error(
+            "❌ TICKET_API_URL is missing."
         );
 
+        process.exit(1);
     }
 
     if (
@@ -2098,39 +2207,27 @@ async function start() {
     ) {
 
         console.error(
-
-            "❌ TICKET_API_SECRET is missing from .env"
-
+            "❌ TICKET_API_SECRET is missing."
         );
 
         process.exit(1);
-
     }
 
     try {
 
         await client.login(
-
             process.env.GIVEAWAY_BOT_TOKEN
-
         );
 
     } catch (error) {
 
         console.error(
-
-            "❌ Failed to login to Discord:"
-
-        );
-
-        console.error(
+            "❌ Failed to login:",
             error
         );
 
         process.exit(1);
-
     }
-
 }
 
 start();
