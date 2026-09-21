@@ -19,6 +19,10 @@ const {
 const config = require("./config.json");
 const db = require("./database");
 
+// =====================================================
+// CLIENT
+// =====================================================
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds
@@ -39,15 +43,15 @@ function parseDuration(input) {
         .trim()
         .toLowerCase();
 
-    const match = value.match(
-        /^(\d+)\s*(m|h|d|w)$/
-    );
+    const match =
+        value.match(/^(\d+)\s*(m|h|d|w)$/);
 
     if (!match) {
         return null;
     }
 
-    const number = Number(match[1]);
+    const number =
+        Number(match[1]);
 
     if (number <= 0) {
         return null;
@@ -99,10 +103,13 @@ const commands = [
     // =================================================
 
     new SlashCommandBuilder()
+
         .setName("setup-giveaway")
+
         .setDescription(
             "Set the role allowed to create normal giveaways."
         )
+
         .addRoleOption(option =>
             option
                 .setName("staff_role")
@@ -111,9 +118,11 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .setDefaultMemberPermissions(
             PermissionFlagsBits.ManageGuild
         )
+
         .toJSON(),
 
     // =================================================
@@ -121,10 +130,13 @@ const commands = [
     // =================================================
 
     new SlashCommandBuilder()
+
         .setName("setup-special-giveaway")
+
         .setDescription(
             "Set the role allowed to create special giveaways."
         )
+
         .addRoleOption(option =>
             option
                 .setName("staff_role")
@@ -133,9 +145,11 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .setDefaultMemberPermissions(
             PermissionFlagsBits.ManageGuild
         )
+
         .toJSON(),
 
     // =================================================
@@ -143,10 +157,13 @@ const commands = [
     // =================================================
 
     new SlashCommandBuilder()
+
         .setName("giveaway")
+
         .setDescription(
             "Create a Robux giveaway."
         )
+
         .addIntegerOption(option =>
             option
                 .setName("robux")
@@ -156,6 +173,7 @@ const commands = [
                 .setRequired(true)
                 .setMinValue(1)
         )
+
         .addStringOption(option =>
             option
                 .setName("duration")
@@ -164,6 +182,7 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .addIntegerOption(option =>
             option
                 .setName("winners")
@@ -174,6 +193,7 @@ const commands = [
                 .setMinValue(1)
                 .setMaxValue(20)
         )
+
         .addBooleanOption(option =>
             option
                 .setName("ping")
@@ -182,6 +202,7 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .toJSON(),
 
     // =================================================
@@ -189,10 +210,13 @@ const commands = [
     // =================================================
 
     new SlashCommandBuilder()
+
         .setName("specialgiveaway")
+
         .setDescription(
             "Create a giveaway for members with a specific role."
         )
+
         .addIntegerOption(option =>
             option
                 .setName("robux")
@@ -202,6 +226,7 @@ const commands = [
                 .setRequired(true)
                 .setMinValue(1)
         )
+
         .addStringOption(option =>
             option
                 .setName("duration")
@@ -210,6 +235,7 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .addIntegerOption(option =>
             option
                 .setName("winners")
@@ -220,6 +246,7 @@ const commands = [
                 .setMinValue(1)
                 .setMaxValue(20)
         )
+
         .addBooleanOption(option =>
             option
                 .setName("ping")
@@ -228,6 +255,7 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .addRoleOption(option =>
             option
                 .setName("special_role")
@@ -236,20 +264,22 @@ const commands = [
                 )
                 .setRequired(true)
         )
+
         .toJSON()
 ];
 
 // =====================================================
-// COMMAND REGISTRATION
+// REGISTER COMMANDS
 // =====================================================
 
 async function registerCommands() {
 
-    const rest = new REST({
-        version: "10"
-    }).setToken(
-        process.env.GIVEAWAY_BOT_TOKEN
-    );
+    const rest =
+        new REST({
+            version: "10"
+        }).setToken(
+            process.env.GIVEAWAY_BOT_TOKEN
+        );
 
     try {
 
@@ -310,7 +340,7 @@ async function registerCommands() {
 }
 
 // =====================================================
-// NORMAL GIVEAWAY STAFF CHECK
+// NORMAL STAFF CHECK
 // =====================================================
 
 function isGiveawayStaff(interaction) {
@@ -349,7 +379,7 @@ function isGiveawayStaff(interaction) {
 }
 
 // =====================================================
-// SPECIAL GIVEAWAY STAFF CHECK
+// SPECIAL STAFF CHECK
 // =====================================================
 
 function isSpecialGiveawayStaff(interaction) {
@@ -385,6 +415,70 @@ function isSpecialGiveawayStaff(interaction) {
     return interaction.member.roles.cache.has(
         settings.specialStaffRoleId
     );
+}
+
+// =====================================================
+// GIVEAWAY MANAGER CHECK
+// Used for End / Reroll
+// =====================================================
+
+function isGiveawayManager(
+    interaction,
+    giveaway
+) {
+
+    if (!interaction.guild) {
+        return false;
+    }
+
+    if (!interaction.member) {
+        return false;
+    }
+
+    if (
+        interaction.member.permissions.has(
+            PermissionFlagsBits.ManageGuild
+        )
+    ) {
+        return true;
+    }
+
+    if (giveaway.specialRoleId) {
+
+        const settings =
+            db.getGiveawayConfig(
+                interaction.guild.id
+            );
+
+        if (
+            settings &&
+            settings.specialStaffRoleId &&
+            interaction.member.roles.cache.has(
+                settings.specialStaffRoleId
+            )
+        ) {
+            return true;
+        }
+
+    } else {
+
+        const settings =
+            db.getGiveawayConfig(
+                interaction.guild.id
+            );
+
+        if (
+            settings &&
+            settings.staffRoleId &&
+            interaction.member.roles.cache.has(
+                settings.staffRoleId
+            )
+        ) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // =====================================================
@@ -432,138 +526,111 @@ function createGiveawayEmbed(
 
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
 
-        `🎉 Press **Join Giveaway** to enter!\n\n` +
+        `🎉 Press **Join Giveaway** to enter!\n` +
 
         `📝 You will be asked for your Roblox Username.`;
 
     return new EmbedBuilder()
-        .setTitle("🎉 ROBUX GIVEAWAY")
-        .setDescription(description)
+
+        .setTitle(
+            "🎉 ROBUX GIVEAWAY"
+        )
+
+        .setDescription(
+            description
+        )
+
         .setFooter({
             text:
                 "Roblox Giveaway • Good luck! 🍀"
         })
+
         .setTimestamp();
 }
 
 // =====================================================
-// GIVEAWAY BUTTONS
+// PUBLIC GIVEAWAY BUTTONS
 // =====================================================
 
-function createGiveawayButtons(giveawayId) {
+function createGiveawayButtons(
+    giveawayId
+) {
 
     const join =
         new ButtonBuilder()
+
             .setCustomId(
                 `join_${giveawayId}`
             )
+
             .setLabel(
                 "Join Giveaway"
             )
-            .setEmoji("🎉")
+
+            .setEmoji(
+                "🎉"
+            )
+
             .setStyle(
                 ButtonStyle.Success
             );
 
     const participants =
         new ButtonBuilder()
+
             .setCustomId(
                 `participants_${giveawayId}`
             )
+
             .setLabel(
                 "Show Participants"
             )
-            .setEmoji("👥")
-            .setStyle(
-                ButtonStyle.Secondary
-            );
 
-    const cancel =
-        new ButtonBuilder()
-            .setCustomId(
-                `cancel_${giveawayId}`
+            .setEmoji(
+                "👥"
             )
-            .setLabel(
-                "Cancel Giveaway"
-            )
-            .setEmoji("🛑")
-            .setStyle(
-                ButtonStyle.Danger
-            );
 
-    return [
-        new ActionRowBuilder()
-            .addComponents(
-                join,
-                participants,
-                cancel
-            )
-    ];
-}
-
-// =====================================================
-// LEAVE CONFIRMATION
-// =====================================================
-
-function createLeaveConfirmation(giveawayId) {
-
-    const yes =
-        new ButtonBuilder()
-            .setCustomId(
-                `leave_yes_${giveawayId}`
-            )
-            .setLabel("Yes")
-            .setStyle(
-                ButtonStyle.Danger
-            );
-
-    const no =
-        new ButtonBuilder()
-            .setCustomId(
-                `leave_no_${giveawayId}`
-            )
-            .setLabel("No")
             .setStyle(
                 ButtonStyle.Secondary
             );
 
     return new ActionRowBuilder()
         .addComponents(
-            yes,
-            no
+            join,
+            participants
         );
 }
 
 // =====================================================
-// CANCEL CONFIRMATION
+// HOST PRIVATE CONTROL
 // =====================================================
 
-function createCancelConfirmation(giveawayId) {
+function createHostCancelButton(
+    giveawayId
+) {
 
-    const yes =
+    const cancel =
         new ButtonBuilder()
+
             .setCustomId(
-                `cancel_yes_${giveawayId}`
+                `cancel_${giveawayId}`
             )
-            .setLabel("Yes")
+
+            .setLabel(
+                "Cancel Giveaway"
+            )
+
+            .setEmoji(
+                "❌"
+            )
+
             .setStyle(
                 ButtonStyle.Danger
             );
 
-    const no =
-        new ButtonBuilder()
-            .setCustomId(
-                `cancel_no_${giveawayId}`
-            )
-            .setLabel("No")
-            .setStyle(
-                ButtonStyle.Secondary
-            );
-
     return new ActionRowBuilder()
         .addComponents(
-            yes,
-            no
+            cancel
         );
 }
 
@@ -603,17 +670,17 @@ client.on(
 
         try {
 
-            // =========================================
-            // SLASH COMMANDS
-            // =========================================
+            // =================================================
+            // CHAT COMMANDS
+            // =================================================
 
             if (
                 interaction.isChatInputCommand()
             ) {
 
-                // =====================================
-                // SETUP GIVEAWAY
-                // =====================================
+                // =============================================
+                // SETUP NORMAL
+                // =============================================
 
                 if (
                     interaction.commandName ===
@@ -627,8 +694,10 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You need **Manage Server** permission.",
+
                             ephemeral: true
                         });
                     }
@@ -641,8 +710,10 @@ client.on(
                     if (!role) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ Please select a role.",
+
                             ephemeral: true
                         });
                     }
@@ -653,8 +724,10 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You cannot use @everyone.",
+
                             ephemeral: true
                         });
                     }
@@ -662,8 +735,10 @@ client.on(
                     if (role.managed) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You cannot use a managed role.",
+
                             ephemeral: true
                         });
                     }
@@ -674,16 +749,18 @@ client.on(
                     );
 
                     return interaction.reply({
+
                         content:
                             `✅ **Giveaway system configured!**\n\n` +
                             `🎁 Giveaway Staff Role: ${role}`,
+
                         ephemeral: true
                     });
                 }
 
-                // =====================================
-                // SETUP SPECIAL GIVEAWAY
-                // =====================================
+                // =============================================
+                // SETUP SPECIAL
+                // =============================================
 
                 if (
                     interaction.commandName ===
@@ -697,8 +774,10 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You need **Manage Server** permission.",
+
                             ephemeral: true
                         });
                     }
@@ -711,8 +790,10 @@ client.on(
                     if (!role) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ Please select a role.",
+
                             ephemeral: true
                         });
                     }
@@ -723,8 +804,10 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You cannot use @everyone.",
+
                             ephemeral: true
                         });
                     }
@@ -732,8 +815,10 @@ client.on(
                     if (role.managed) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You cannot use a managed role.",
+
                             ephemeral: true
                         });
                     }
@@ -744,17 +829,19 @@ client.on(
                     );
 
                     return interaction.reply({
+
                         content:
                             `✅ **Special Giveaway system configured!**\n\n` +
                             `🎭 Special Giveaway Staff Role: ${role}\n\n` +
                             `Members with this role can now use **/specialgiveaway**.`,
+
                         ephemeral: true
                     });
                 }
 
-                // =====================================
+                // =============================================
                 // NORMAL GIVEAWAY
-                // =====================================
+                // =============================================
 
                 if (
                     interaction.commandName ===
@@ -768,8 +855,10 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ You do not have permission to create giveaways.",
+
                             ephemeral: true
                         });
                     }
@@ -782,9 +871,9 @@ client.on(
                     return;
                 }
 
-                // =====================================
+                // =============================================
                 // SPECIAL GIVEAWAY
-                // =====================================
+                // =============================================
 
                 if (
                     interaction.commandName ===
@@ -798,8 +887,11 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
-                                "❌ You do not have permission to create special giveaways.\n\nAsk a server administrator to configure **/setup-special-giveaway**.",
+                                "❌ You do not have permission to create special giveaways.\n\n" +
+                                "Ask a server administrator to configure **/setup-special-giveaway**.",
+
                             ephemeral: true
                         });
                     }
@@ -813,29 +905,26 @@ client.on(
                 }
             }
 
-            // =========================================
+            // =================================================
             // BUTTONS
-            // =========================================
+            // =================================================
 
             if (
                 interaction.isButton()
             ) {
 
-                const customId =
-                    interaction.customId;
-
-                // =====================================
+                // =============================================
                 // SHOW PARTICIPANTS
-                // =====================================
+                // =============================================
 
                 if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "participants_"
                     )
                 ) {
 
                     const giveawayId =
-                        customId.replace(
+                        interaction.customId.replace(
                             "participants_",
                             ""
                         );
@@ -848,8 +937,10 @@ client.on(
                     if (!giveaway) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ Giveaway not found.",
+
                             ephemeral: true
                         });
                     }
@@ -864,66 +955,94 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
-                                "👥 **Participants**\n\nNo one has joined this giveaway yet.",
+                                "👥 **Participants**\n\n" +
+                                "No one has joined this giveaway yet.",
+
                             ephemeral: true
                         });
                     }
 
-                    const list =
-                        participants
-                            .map(
-                                (user, index) =>
-                                    `**${index + 1}.** <@${user.discordId}> — Roblox: **${user.robloxUsername}**`
-                            )
-                            .join("\n");
+                    const maxDisplay = 30;
 
-                    const maxLength = 3500;
+                    const shown =
+                        participants.slice(
+                            0,
+                            maxDisplay
+                        );
 
-                    const shownList =
-                        list.length > maxLength
-                            ? list.slice(0, maxLength) +
-                              "\n\n...and more."
-                            : list;
+                    let text = "";
+
+                    shown.forEach(
+                        (participant, index) => {
+
+                            text +=
+                                `**${index + 1}.** <@${participant.discordId}> — ` +
+                                `Roblox: **${escapeMarkdown(participant.robloxUsername)}**\n`;
+                        }
+                    );
+
+                    if (
+                        participants.length >
+                        maxDisplay
+                    ) {
+
+                        text +=
+                            `\n...and **${participants.length - maxDisplay}** more.`;
+                    }
 
                     const embed =
                         new EmbedBuilder()
+
                             .setTitle(
                                 "👥 Giveaway Participants"
                             )
+
                             .setDescription(
-                                shownList
+                                text
                             )
+
                             .addFields({
-                                name: "Total Participants",
+
+                                name:
+                                    "Total Participants",
+
                                 value:
-                                    `**${participants.length}**`,
-                                inline: true
+                                    `${participants.length}`,
+
+                                inline:
+                                    true
                             })
-                            .setColor(0x5865F2)
-                            .setFooter({
-                                text:
-                                    "Only you can see this list."
-                            });
+
+                            .setColor(
+                                0x2ecc71
+                            )
+
+                            .setTimestamp();
 
                     return interaction.reply({
-                        embeds: [embed],
+
+                        embeds: [
+                            embed
+                        ],
+
                         ephemeral: true
                     });
                 }
 
-                // =====================================
+                // =============================================
                 // JOIN
-                // =====================================
+                // =============================================
 
                 if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "join_"
                     )
                 ) {
 
                     const giveawayId =
-                        customId.replace(
+                        interaction.customId.replace(
                             "join_",
                             ""
                         );
@@ -939,8 +1058,10 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ This giveaway has ended.",
+
                             ephemeral: true
                         });
                     }
@@ -955,15 +1076,17 @@ client.on(
                         );
 
                         return interaction.reply({
+
                             content:
                                 "❌ This giveaway has ended.",
+
                             ephemeral: true
                         });
                     }
 
-                    // =================================
-                    // HOST CANNOT JOIN
-                    // =================================
+                    // =========================================
+                    // HOST CANNOT JOIN OWN GIVEAWAY
+                    // =========================================
 
                     if (
                         giveaway.hostId ===
@@ -971,15 +1094,17 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
-                                "❌ You are the host of this giveaway, so you cannot enter your own giveaway.",
+                                "❌ You cannot join your own giveaway.",
+
                             ephemeral: true
                         });
                     }
 
-                    // =================================
+                    // =========================================
                     // SPECIAL ROLE CHECK
-                    // =================================
+                    // =========================================
 
                     if (
                         giveaway.specialRoleId &&
@@ -989,9 +1114,11 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 `❌ You cannot join this giveaway.\n\n` +
                                 `You need the <@&${giveaway.specialRoleId}> role to participate.`,
+
                             ephemeral: true
                         });
                     }
@@ -1008,56 +1135,99 @@ client.on(
                                 interaction.user.id
                         );
 
-                    // =================================
-                    // ALREADY JOINED = LEAVE
-                    // =================================
+                    // =========================================
+                    // ALREADY JOINED
+                    // =========================================
 
                     if (alreadyJoined) {
 
-                        return interaction.reply({
-                            content:
-                                "🚪 You are already participating in this giveaway.\n\nDo you want to leave the giveaway?",
-                            components: [
-                                createLeaveConfirmation(
-                                    giveawayId
+                        const leaveButton =
+                            new ButtonBuilder()
+
+                                .setCustomId(
+                                    `leave_${giveawayId}`
                                 )
+
+                                .setLabel(
+                                    "Leave Giveaway"
+                                )
+
+                                .setEmoji(
+                                    "🚪"
+                                )
+
+                                .setStyle(
+                                    ButtonStyle.Danger
+                                );
+
+                        const row =
+                            new ActionRowBuilder()
+                                .addComponents(
+                                    leaveButton
+                                );
+
+                        return interaction.reply({
+
+                            content:
+                                "⚠️ You are already participating in this giveaway.\n\n" +
+                                "If you want to leave, press the button below.",
+
+                            components: [
+                                row
                             ],
+
                             ephemeral: true
                         });
                     }
 
-                    // =================================
-                    // JOIN MODAL
-                    // =================================
+                    // =========================================
+                    // SHOW ROBLOX USERNAME MODAL
+                    // =========================================
 
                     const modal =
                         new ModalBuilder()
+
                             .setCustomId(
                                 `username_${giveawayId}`
                             )
+
                             .setTitle(
                                 "🎉 Join Giveaway"
                             );
 
                     const input =
                         new TextInputBuilder()
+
                             .setCustomId(
                                 "roblox_username"
                             )
+
                             .setLabel(
                                 "Roblox Username"
                             )
+
                             .setPlaceholder(
                                 "Enter your Roblox username"
                             )
+
                             .setStyle(
                                 TextInputStyle.Short
                             )
-                            .setRequired(true)
-                            .setMinLength(3)
-                            .setMaxLength(20);
+
+                            .setRequired(
+                                true
+                            )
+
+                            .setMinLength(
+                                3
+                            )
+
+                            .setMaxLength(
+                                20
+                            );
 
                     modal.addComponents(
+
                         new ActionRowBuilder()
                             .addComponents(
                                 input
@@ -1069,19 +1239,19 @@ client.on(
                     );
                 }
 
-                // =====================================
-                // LEAVE YES
-                // =====================================
+                // =============================================
+                // LEAVE GIVEAWAY
+                // =============================================
 
                 if (
-                    customId.startsWith(
-                        "leave_yes_"
+                    interaction.customId.startsWith(
+                        "leave_"
                     )
                 ) {
 
                     const giveawayId =
-                        customId.replace(
-                            "leave_yes_",
+                        interaction.customId.replace(
+                            "leave_",
                             ""
                         );
 
@@ -1096,73 +1266,92 @@ client.on(
                     ) {
 
                         return interaction.update({
+
                             content:
                                 "❌ This giveaway has ended.",
+
                             components: []
                         });
                     }
 
-                    const removed =
-                        db.removeParticipant(
-                            giveawayId,
-                            interaction.user.id
+                    const participants =
+                        db.getParticipants(
+                            giveawayId
                         );
 
-                    if (!removed) {
+                    const participant =
+                        participants.find(
+                            user =>
+                                user.discordId ===
+                                interaction.user.id
+                        );
+
+                    if (!participant) {
 
                         return interaction.update({
+
                             content:
                                 "❌ You are not participating in this giveaway.",
+
                             components: []
                         });
                     }
+
+                    if (
+                        typeof db.removeParticipant !==
+                        "function"
+                    ) {
+
+                        return interaction.update({
+
+                            content:
+                                "❌ The Leave Giveaway system is not configured in the database yet.",
+
+                            components: []
+                        });
+                    }
+
+                    db.removeParticipant(
+                        giveawayId,
+                        interaction.user.id
+                    );
+
+                    const newCount =
+                        db.getParticipants(
+                            giveawayId
+                        ).length;
+
+                    await interaction.update({
+
+                        content:
+                            "✅ You have left the giveaway.",
+
+                        components: []
+                    });
 
                     await updateGiveawayMessage(
                         giveawayId
                     );
 
-                    return interaction.update({
-                        content:
-                            "🚪 **You left the giveaway successfully.**",
-                        components: []
-                    });
+                    console.log(
+                        `🚪 ${interaction.user.tag} left giveaway ${giveawayId}. Participants: ${newCount}`
+                    );
+
+                    return;
                 }
 
-                // =====================================
-                // LEAVE NO
-                // =====================================
+                // =============================================
+                // CANCEL GIVEAWAY
+                // =============================================
 
                 if (
-                    customId.startsWith(
-                        "leave_no_"
-                    )
-                ) {
-
-                    return interaction.update({
-                        content:
-                            "✅ You stayed in the giveaway.",
-                        components: []
-                    });
-                }
-
-                // =====================================
-                // CANCEL BUTTON
-                // =====================================
-
-                if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "cancel_"
-                    ) &&
-                    !customId.startsWith(
-                        "cancel_yes_"
-                    ) &&
-                    !customId.startsWith(
-                        "cancel_no_"
                     )
                 ) {
 
                     const giveawayId =
-                        customId.replace(
+                        interaction.customId.replace(
                             "cancel_",
                             ""
                         );
@@ -1175,49 +1364,127 @@ client.on(
                     if (!giveaway) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ Giveaway not found.",
+
                             ephemeral: true
                         });
                     }
 
-                    // Only HOST
+                    // =========================================
+                    // ONLY HOST
+                    // =========================================
+
                     if (
                         giveaway.hostId !==
                         interaction.user.id
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ Only the person who created this giveaway can cancel it.",
+
                             ephemeral: true
                         });
                     }
 
-                    return interaction.reply({
-                        content:
-                            "⚠️ **Are you sure you want to cancel this giveaway?**\n\nThis cannot be undone.",
-                        components: [
-                            createCancelConfirmation(
-                                giveawayId
+                    if (giveaway.ended) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ This giveaway has already ended.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    const yes =
+                        new ButtonBuilder()
+
+                            .setCustomId(
+                                `cancel_yes_${giveawayId}`
                             )
+
+                            .setLabel(
+                                "Yes"
+                            )
+
+                            .setEmoji(
+                                "✅"
+                            )
+
+                            .setStyle(
+                                ButtonStyle.Danger
+                            );
+
+                    const no =
+                        new ButtonBuilder()
+
+                            .setCustomId(
+                                `cancel_no_${giveawayId}`
+                            )
+
+                            .setLabel(
+                                "No"
+                            )
+
+                            .Emoji?.("❌");
+
+                    // Discord.js safe button creation
+                    const noButton =
+                        new ButtonBuilder()
+
+                            .setCustomId(
+                                `cancel_no_${giveawayId}`
+                            )
+
+                            .setLabel(
+                                "No"
+                            )
+
+                            .setEmoji(
+                                "❌"
+                            )
+
+                            .setStyle(
+                                ButtonStyle.Secondary
+                            );
+
+                    const row =
+                        new ActionRowBuilder()
+                            .addComponents(
+                                yes,
+                                noButton
+                            );
+
+                    return interaction.reply({
+
+                        content:
+                            "⚠️ **Are you sure you want to cancel this giveaway?**",
+
+                        components: [
+                            row
                         ],
+
                         ephemeral: true
                     });
                 }
 
-                // =====================================
+                // =============================================
                 // CANCEL YES
-                // =====================================
+                // =============================================
 
                 if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "cancel_yes_"
                     )
                 ) {
 
                     const giveawayId =
-                        customId.replace(
+                        interaction.customId.replace(
                             "cancel_yes_",
                             ""
                         );
@@ -1230,8 +1497,10 @@ client.on(
                     if (!giveaway) {
 
                         return interaction.update({
+
                             content:
                                 "❌ Giveaway not found.",
+
                             components: []
                         });
                     }
@@ -1242,68 +1511,160 @@ client.on(
                     ) {
 
                         return interaction.update({
+
                             content:
                                 "❌ Only the giveaway host can cancel this giveaway.",
+
                             components: []
                         });
                     }
 
-                    await cancelGiveaway(
+                    if (giveaway.ended) {
+
+                        return interaction.update({
+
+                            content:
+                                "❌ This giveaway has already ended.",
+
+                            components: []
+                        });
+                    }
+
+                    db.endGiveaway(
                         giveawayId
                     );
 
+                    try {
+
+                        const channel =
+                            await client.channels.fetch(
+                                giveaway.channelId
+                            );
+
+                        const message =
+                            await channel.messages.fetch(
+                                giveaway.messageId
+                            );
+
+                        const participants =
+                            db.getParticipants(
+                                giveawayId
+                            );
+
+                        const embed =
+                            new EmbedBuilder()
+
+                                .setTitle(
+                                    "❌ Giveaway Cancelled"
+                                )
+
+                                .setDescription(
+
+                                    `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
+                                    `👑 **Host:** <@${giveaway.hostId}>\n\n` +
+
+                                    `👥 **Participants:** ${participants.length}\n\n` +
+
+                                    `This giveaway was cancelled by the host.`
+                                )
+
+                                .setTimestamp();
+
+                        await message.edit({
+
+                            content: "",
+
+                            embeds: [
+                                embed
+                            ],
+
+                            components: []
+                        });
+
+                    } catch (error) {
+
+                        console.error(
+                            "❌ Could not update cancelled giveaway message:",
+                            error.message
+                        );
+                    }
+
                     return interaction.update({
+
                         content:
-                            "🛑 **Giveaway cancelled successfully.**",
+                            "✅ **Giveaway cancelled successfully.**",
+
                         components: []
                     });
                 }
 
-                // =====================================
+                // =============================================
                 // CANCEL NO
-                // =====================================
+                // =============================================
 
                 if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "cancel_no_"
                     )
                 ) {
 
                     return interaction.update({
+
                         content:
-                            "✅ Giveaway cancellation cancelled.",
+                            "👍 Giveaway cancellation cancelled.",
+
                         components: []
                     });
                 }
 
-                // =====================================
+                // =============================================
                 // END GIVEAWAY
-                // =====================================
+                // =============================================
 
                 if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "end_"
                     )
                 ) {
 
-                    if (
-                        !isGiveawayStaff(
-                            interaction
-                        )
-                    ) {
+                    const giveawayId =
+                        interaction.customId.replace(
+                            "end_",
+                            ""
+                        );
+
+                    const giveaway =
+                        db.getGiveaway(
+                            giveawayId
+                        );
+
+                    if (!giveaway) {
 
                         return interaction.reply({
+
                             content:
-                                "❌ You do not have permission to end giveaways.",
+                                "❌ Giveaway not found.",
+
                             ephemeral: true
                         });
                     }
 
-                    const giveawayId =
-                        customId.replace(
-                            "end_",
-                            ""
-                        );
+                    if (
+                        !isGiveawayManager(
+                            interaction,
+                            giveaway
+                        )
+                    ) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You do not have permission to end this giveaway.",
+
+                            ephemeral: true
+                        });
+                    }
 
                     await interaction.deferReply({
                         ephemeral: true
@@ -1314,39 +1675,59 @@ client.on(
                     );
 
                     return interaction.editReply({
+
                         content:
                             "🛑 **Giveaway ended successfully!**"
                     });
                 }
 
-                // =====================================
+                // =============================================
                 // REROLL
-                // =====================================
+                // =============================================
 
                 if (
-                    customId.startsWith(
+                    interaction.customId.startsWith(
                         "reroll_"
                     )
                 ) {
 
-                    if (
-                        !isGiveawayStaff(
-                            interaction
-                        )
-                    ) {
+                    const giveawayId =
+                        interaction.customId.replace(
+                            "reroll_",
+                            ""
+                        );
+
+                    const giveaway =
+                        db.getGiveaway(
+                            giveawayId
+                        );
+
+                    if (!giveaway) {
 
                         return interaction.reply({
+
                             content:
-                                "❌ You do not have permission to reroll giveaways.",
+                                "❌ Giveaway not found.",
+
                             ephemeral: true
                         });
                     }
 
-                    const giveawayId =
-                        customId.replace(
-                            "reroll_",
-                            ""
-                        );
+                    if (
+                        !isGiveawayManager(
+                            interaction,
+                            giveaway
+                        )
+                    ) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You do not have permission to reroll this giveaway.",
+
+                            ephemeral: true
+                        });
+                    }
 
                     await rerollGiveaway(
                         interaction,
@@ -1357,9 +1738,9 @@ client.on(
                 }
             }
 
-            // =========================================
+            // =================================================
             // MODALS
-            // =========================================
+            // =================================================
 
             if (
                 interaction.isModalSubmit()
@@ -1388,15 +1769,17 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ This giveaway has ended.",
+
                             ephemeral: true
                         });
                     }
 
-                    // =================================
+                    // =========================================
                     // HOST CANNOT JOIN
-                    // =================================
+                    // =========================================
 
                     if (
                         giveaway.hostId ===
@@ -1404,15 +1787,17 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
-                                "❌ You are the host of this giveaway, so you cannot enter your own giveaway.",
+                                "❌ You cannot join your own giveaway.",
+
                             ephemeral: true
                         });
                     }
 
-                    // =================================
+                    // =========================================
                     // SPECIAL ROLE CHECK
-                    // =================================
+                    // =========================================
 
                     if (
                         giveaway.specialRoleId &&
@@ -1422,9 +1807,11 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 `❌ You cannot join this giveaway.\n\n` +
                                 `You need the <@&${giveaway.specialRoleId}> role to participate.`,
+
                             ephemeral: true
                         });
                     }
@@ -1439,8 +1826,10 @@ client.on(
                     if (!username) {
 
                         return interaction.reply({
+
                             content:
                                 "❌ Please enter your Roblox username.",
+
                             ephemeral: true
                         });
                     }
@@ -1459,18 +1848,24 @@ client.on(
                     ) {
 
                         return interaction.reply({
+
                             content:
                                 "⚠️ You are already participating in this giveaway.",
+
                             ephemeral: true
                         });
                     }
 
                     db.addParticipant({
+
                         giveawayId,
+
                         discordId:
                             interaction.user.id,
+
                         discordTag:
                             interaction.user.tag,
+
                         robloxUsername:
                             username
                     });
@@ -1481,12 +1876,14 @@ client.on(
                         ).length;
 
                     await interaction.reply({
+
                         content:
                             `🎉 **You're in!**\n\n` +
                             `👤 Roblox: **${username}**\n` +
                             `💰 Prize: **${giveaway.robux.toLocaleString()} Robux**\n` +
                             `👥 Participants: **${count}**\n\n` +
                             `🍀 Good luck!`,
+
                         ephemeral: true
                     });
 
@@ -1510,8 +1907,10 @@ client.on(
                 ) {
 
                     await interaction.followUp({
+
                         content:
                             "❌ An error occurred. Please try again.",
+
                         ephemeral: true
                     });
 
@@ -1520,6 +1919,7 @@ client.on(
                 ) {
 
                     await interaction.editReply({
+
                         content:
                             "❌ An error occurred. Please try again."
                     });
@@ -1527,8 +1927,10 @@ client.on(
                 } else {
 
                     await interaction.reply({
+
                         content:
                             "❌ An error occurred. Please try again.",
+
                         ephemeral: true
                     });
                 }
@@ -1575,11 +1977,13 @@ async function createGiveawayFromCommand(
     if (!duration) {
 
         return interaction.reply({
+
             content:
                 "❌ Invalid duration.\n\n" +
                 "Examples: `1m`, `30m`, `1h`, `12h`, `1d`, `3d`, `1w`.\n\n" +
                 "Minimum: **1 minute**\n" +
                 "Maximum: **1 week**",
+
             ephemeral: true
         });
     }
@@ -1596,8 +2000,10 @@ async function createGiveawayFromCommand(
         if (!specialRole) {
 
             return interaction.reply({
+
                 content:
                     "❌ Please select the role allowed to join this giveaway.",
+
                 ephemeral: true
             });
         }
@@ -1608,8 +2014,10 @@ async function createGiveawayFromCommand(
         ) {
 
             return interaction.reply({
+
                 content:
                     "❌ You cannot use @everyone as the special giveaway role.",
+
                 ephemeral: true
             });
         }
@@ -1617,8 +2025,10 @@ async function createGiveawayFromCommand(
         if (specialRole.managed) {
 
             return interaction.reply({
+
                 content:
                     "❌ You cannot use a managed or integration role as the special giveaway role.",
+
                 ephemeral: true
             });
         }
@@ -1657,10 +2067,7 @@ async function createGiveawayFromCommand(
         specialRoleId:
             specialRole
                 ? specialRole.id
-                : null,
-
-        ended:
-            0
+                : null
     };
 
     db.createGiveaway(
@@ -1678,39 +2085,66 @@ async function createGiveawayFromCommand(
             giveawayId
         );
 
-    const message =
-        await interaction.channel.send({
+    try {
+
+        const message =
+            await interaction.channel.send({
+
+                content:
+                    ping
+                        ? "@everyone"
+                        : "",
+
+                embeds: [
+                    embed
+                ],
+
+                components: [
+                    buttons
+                ],
+
+                allowedMentions: {
+
+                    parse:
+                        ping
+                            ? ["everyone"]
+                            : [],
+
+                    roles:
+                        specialRole
+                            ? [specialRole.id]
+                            : []
+                }
+            });
+
+        db.updateMessageId(
+            giveawayId,
+            message.id
+        );
+
+    } catch (error) {
+
+        console.error(
+            "❌ Could not send giveaway message:",
+            error
+        );
+
+        db.endGiveaway(
+            giveawayId
+        );
+
+        return interaction.reply({
 
             content:
-                ping
-                    ? "@everyone"
-                    : "",
+                "❌ I could not send the giveaway message. Please check my channel permissions.",
 
-            embeds: [
-                embed
-            ],
-
-            components:
-                buttons,
-
-            allowedMentions: {
-
-                parse:
-                    ping
-                        ? ["everyone"]
-                        : [],
-
-                roles:
-                    specialRole
-                        ? [specialRole.id]
-                        : []
-            }
+            ephemeral: true
         });
+    }
 
-    db.updateMessageId(
-        giveawayId,
-        message.id
-    );
+    // =============================================
+    // PUBLIC CREATION CONFIRMATION
+    // =============================================
 
     await interaction.reply({
 
@@ -1728,10 +2162,40 @@ async function createGiveawayFromCommand(
                 specialRole
                     ? `\n🎭 Required Role: ${specialRole}`
                     : ""
-            ),
+            ) +
+
+            `\n\n❌ Only you can cancel this giveaway.`,
 
         ephemeral: true
     });
+
+    // =============================================
+    // PRIVATE HOST CANCEL BUTTON
+    // =============================================
+
+    try {
+
+        await interaction.followUp({
+
+            content:
+                "🎛️ **Giveaway Host Controls**\n\nYou can cancel your giveaway from here.",
+
+            components: [
+                createHostCancelButton(
+                    giveawayId
+                )
+            ],
+
+            ephemeral: true
+        });
+
+    } catch (error) {
+
+        console.error(
+            "❌ Could not send host controls:",
+            error.message
+        );
+    }
 
     scheduleGiveaway(
         giveawayId,
@@ -1783,8 +2247,15 @@ async function updateGiveawayMessage(
             );
 
         await message.edit({
+
             embeds: [
                 embed
+            ],
+
+            components: [
+                createGiveawayButtons(
+                    giveawayId
+                )
             ]
         });
 
@@ -1794,86 +2265,6 @@ async function updateGiveawayMessage(
             "❌ Could not update giveaway:",
             error.message
         );
-    }
-}
-
-// =====================================================
-// CANCEL GIVEAWAY
-// =====================================================
-
-async function cancelGiveaway(
-    giveawayId
-) {
-
-    const giveaway =
-        db.getGiveaway(
-            giveawayId
-        );
-
-    if (!giveaway) {
-        return false;
-    }
-
-    if (giveaway.ended) {
-        return false;
-    }
-
-    db.endGiveaway(
-        giveawayId
-    );
-
-    try {
-
-        const channel =
-            await client.channels.fetch(
-                giveaway.channelId
-            );
-
-        const message =
-            await channel.messages.fetch(
-                giveaway.messageId
-            );
-
-        const embed =
-            new EmbedBuilder()
-                .setTitle(
-                    "🛑 Giveaway Cancelled"
-                )
-                .setDescription(
-                    `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
-                    `❌ This giveaway was cancelled by the host.`
-                )
-                .setFooter({
-                    text:
-                        "Roblox Giveaway • Cancelled"
-                })
-                .setTimestamp();
-
-        await message.edit({
-
-            content: "",
-
-            embeds: [
-                embed
-            ],
-
-            components: []
-        });
-
-        console.log(
-            `🛑 Giveaway ${giveawayId} cancelled.`
-        );
-
-        return true;
-
-    } catch (error) {
-
-        console.error(
-            "❌ Could not cancel giveaway:",
-            error.message
-        );
-
-        return false;
     }
 }
 
@@ -1919,9 +2310,9 @@ async function endGiveaway(
                 giveaway.messageId
             );
 
-        // =========================================
+        // =============================================
         // NO PARTICIPANTS
-        // =========================================
+        // =============================================
 
         if (
             participants.length === 0
@@ -1929,13 +2320,18 @@ async function endGiveaway(
 
             const embed =
                 new EmbedBuilder()
+
                     .setTitle(
                         "😔 Giveaway Ended"
                     )
+
                     .setDescription(
+
                         `💰 Prize: **${giveaway.robux.toLocaleString()} Robux**\n\n` +
+
                         `❌ Nobody entered the giveaway.`
                     )
+
                     .setTimestamp();
 
             await message.edit({
@@ -1952,9 +2348,9 @@ async function endGiveaway(
             return;
         }
 
-        // =========================================
+        // =============================================
         // PICK WINNERS
-        // =========================================
+        // =============================================
 
         let winners =
             db.getWinners(
@@ -1973,7 +2369,9 @@ async function endGiveaway(
 
             const selected =
                 shuffled.slice(
+
                     0,
+
                     Math.min(
                         giveaway.winners,
                         participants.length
@@ -2005,54 +2403,69 @@ async function endGiveaway(
                 );
         }
 
-        // =========================================
+        // =============================================
         // CREATE TICKETS
-        // =========================================
+        // =============================================
 
         await createTicketsForWinners(
             giveaway,
             winners
         );
 
-        // =========================================
+        // =============================================
         // WINNER MESSAGE
-        // =========================================
+        // =============================================
 
         const winnerText =
             winners
                 .map(
                     winner =>
-                        `🏆 <@${winner.discordId}> — **${winner.robloxUsername}**`
+                        `🏆 <@${winner.discordId}> — **${escapeMarkdown(winner.robloxUsername)}**`
                 )
                 .join("\n");
 
         const embed =
             new EmbedBuilder()
+
                 .setTitle(
                     "🎉 GIVEAWAY ENDED!"
                 )
+
                 .setDescription(
+
                     `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
                     `🏆 **Winner(s):**\n` +
+
                     `${winnerText}\n\n` +
+
                     `👥 Participants: **${participants.length}**\n\n` +
+
                     `🎊 Congratulations!`
                 )
+
                 .setFooter({
                     text:
                         "Roblox Giveaway • Ended"
                 })
+
                 .setTimestamp();
 
         const rerollButton =
             new ButtonBuilder()
+
                 .setCustomId(
                     `reroll_${giveawayId}`
                 )
+
                 .setLabel(
                     "Reroll Winner"
                 )
-                .setEmoji("🔄")
+
+                .setEmoji(
+                    "🔄"
+                )
+
                 .setStyle(
                     ButtonStyle.Primary
                 );
@@ -2136,10 +2549,7 @@ async function createTicketsForWinners(
                 `🎫 Ticket created for ${winner.discordTag}`
             );
 
-            if (
-                result &&
-                result.channelId
-            ) {
+            if (result.channelId) {
 
                 console.log(
                     `📁 Ticket Channel: ${result.channelId}`
@@ -2172,8 +2582,10 @@ async function rerollGiveaway(
     if (!giveaway) {
 
         return interaction.reply({
+
             content:
                 "❌ Giveaway not found.",
+
             ephemeral: true
         });
     }
@@ -2207,8 +2619,10 @@ async function rerollGiveaway(
     ) {
 
         return interaction.reply({
+
             content:
                 "❌ There are no other participants available for a reroll.",
+
             ephemeral: true
         });
     }
@@ -2284,33 +2698,47 @@ async function rerollGiveaway(
         winners
             .map(
                 winner =>
-                    `🏆 <@${winner.discordId}> — **${winner.robloxUsername}**`
+                    `🏆 <@${winner.discordId}> — **${escapeMarkdown(winner.robloxUsername)}**`
             )
             .join("\n");
 
     const embed =
         new EmbedBuilder()
+
             .setTitle(
                 "🎉 GIVEAWAY ENDED!"
             )
+
             .setDescription(
+
                 `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
                 `🏆 **Winner(s):**\n` +
+
                 `${winnerText}\n\n` +
+
                 `👥 Participants: **${participants.length}**\n\n` +
+
                 `🔄 Winner rerolled!`
             )
+
             .setTimestamp();
 
     const button =
         new ButtonBuilder()
+
             .setCustomId(
                 `reroll_${giveawayId}`
             )
+
             .setLabel(
                 "Reroll Winner"
             )
-            .setEmoji("🔄")
+
+            .setEmoji(
+                "🔄"
+            )
+
             .setStyle(
                 ButtonStyle.Primary
             );
@@ -2330,10 +2758,12 @@ async function rerollGiveaway(
         ],
 
         components: [
+
             new ActionRowBuilder()
                 .addComponents(
                     button
                 )
+
         ]
     });
 
@@ -2455,7 +2885,8 @@ async function sendWinnerToTicketBot(
             `${apiUrl}/internal/giveaway-winner`,
             {
 
-                method: "POST",
+                method:
+                    "POST",
 
                 headers: {
 
@@ -2498,7 +2929,9 @@ async function sendWinnerToTicketBot(
     try {
 
         result =
-            JSON.parse(text);
+            JSON.parse(
+                text
+            );
 
     } catch {
 
@@ -2512,6 +2945,7 @@ async function sendWinnerToTicketBot(
     ) {
 
         throw new Error(
+
             result.error ||
             result.message ||
             `Ticket Bot returned HTTP ${response.status}`
@@ -2523,12 +2957,32 @@ async function sendWinnerToTicketBot(
     ) {
 
         throw new Error(
+
             result.error ||
             "Ticket Bot rejected the request."
         );
     }
 
     return result;
+}
+
+// =====================================================
+// ESCAPE MARKDOWN
+// =====================================================
+
+function escapeMarkdown(
+    text
+) {
+
+    if (!text) {
+        return "";
+    }
+
+    return String(text)
+        .replace(
+            /([\\`*_{}[\]()#+\-.!|>])/g,
+            "\\$1"
+        );
 }
 
 // =====================================================
