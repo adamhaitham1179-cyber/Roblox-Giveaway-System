@@ -35,9 +35,10 @@ function parseDuration(input) {
         return null;
     }
 
-    const value = input
-        .trim()
-        .toLowerCase();
+    const value =
+        input
+            .trim()
+            .toLowerCase();
 
     const match =
         value.match(/^(\d+)\s*(m|h|d|w)$/);
@@ -1279,6 +1280,8 @@ async function createGiveawayFromCommand(
             });
         }
 
+        // Only @everyone is blocked.
+        // Managed / integration roles are now allowed.
         if (
             specialRole.id ===
             interaction.guild.id
@@ -1288,17 +1291,6 @@ async function createGiveawayFromCommand(
 
                 content:
                     "❌ You cannot use @everyone as the special giveaway role.",
-
-                ephemeral: true
-            });
-        }
-
-        if (specialRole.managed) {
-
-            return interaction.reply({
-
-                content:
-                    "❌ You cannot use a managed or integration role as the special giveaway role.",
 
                 ephemeral: true
             });
