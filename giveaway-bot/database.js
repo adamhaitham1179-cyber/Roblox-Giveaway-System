@@ -4,6 +4,10 @@ const db = new Database("giveaways.db");
 
 db.pragma("journal_mode = WAL");
 
+// =====================================================
+// DATABASE TABLES
+// =====================================================
+
 db.exec(`
     CREATE TABLE IF NOT EXISTS giveaways (
         id TEXT PRIMARY KEY,
@@ -13,7 +17,9 @@ db.exec(`
         robux INTEGER NOT NULL,
         winners INTEGER NOT NULL,
         endTime INTEGER NOT NULL,
-        ended INTEGER DEFAULT 0
+        ended INTEGER DEFAULT 0,
+        hostId TEXT,
+        specialRoleId TEXT
     );
 
     CREATE TABLE IF NOT EXISTS participants (
@@ -42,12 +48,38 @@ db.exec(`
     );
 `);
 
+// =====================================================
+// DATABASE MIGRATIONS
+// =====================================================
 
-// ==========================================
-// Giveaway Configuration
-// ==========================================
+// Add hostId to old databases if it does not exist.
+try {
+    db.exec(`
+        ALTER TABLE giveaways
+        ADD COLUMN hostId TEXT;
+    `);
+} catch (error) {
+    // Column already exists.
+}
 
-function setGiveawayConfig(guildId, staffRoleId) {
+// Add specialRoleId to old databases if it does not exist.
+try {
+    db.exec(`
+        ALTER TABLE giveaways
+        ADD COLUMN specialRoleId TEXT;
+    `);
+} catch (error) {
+    // Column already exists.
+}
+
+// =====================================================
+// GIVEAWAY CONFIG
+// =====================================================
+
+function setGiveawayConfig(
+    guildId,
+    staffRoleId
+) {
 
     db.prepare(`
         INSERT INTO giveaway_configs
@@ -67,21 +99,26 @@ function setGiveawayConfig(guildId, staffRoleId) {
 }
 
 
-function getGiveawayConfig(guildId) {
+function getGiveawayConfig(
+    guildId
+) {
 
     return db.prepare(`
         SELECT *
         FROM giveaway_configs
         WHERE guildId = ?
-    `).get(guildId);
+    `).get(
+        guildId
+    );
 }
 
+// =====================================================
+// CREATE GIVEAWAY
+// =====================================================
 
-// ==========================================
-// Giveaway Functions
-// ==========================================
-
-function createGiveaway(data) {
+function createGiveaway(
+    data
+) {
 
     const stmt = db.prepare(`
         INSERT INTO giveaways
@@ -93,9 +130,12 @@ function createGiveaway(data) {
             robux,
             winners,
             endTime,
-            ended
+            ended,
+            hostId,
+            specialRoleId
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `);
 
     stmt.run(
@@ -105,16 +145,20 @@ function createGiveaway(data) {
         data.messageId || null,
         data.robux,
         data.winners,
-        data.endTime
+        data.endTime,
+        data.hostId || null,
+        data.specialRoleId || null
     );
 }
 
+// =====================================================
+// UPDATE MESSAGE ID
+// =====================================================
 
-// ==========================================
-// Update Message ID
-// ==========================================
-
-function updateMessageId(id, messageId) {
+function updateMessageId(
+    id,
+    messageId
+) {
 
     db.prepare(`
         UPDATE giveaways
@@ -126,12 +170,13 @@ function updateMessageId(id, messageId) {
     );
 }
 
+// =====================================================
+// PARTICIPANTS
+// =====================================================
 
-// ==========================================
-// Add Participant
-// ==========================================
-
-function addParticipant(data) {
+function addParticipant(
+    data
+) {
 
     db.prepare(`
         INSERT OR IGNORE INTO participants
@@ -141,6 +186,7 @@ function addParticipant(data) {
             discordTag,
             robloxUsername
         )
+
         VALUES (?, ?, ?, ?)
     `).run(
         data.giveawayId,
@@ -151,11 +197,9 @@ function addParticipant(data) {
 }
 
 
-// ==========================================
-// Get Participants
-// ==========================================
-
-function getParticipants(giveawayId) {
+function getParticipants(
+    giveawayId
+) {
 
     return db.prepare(`
         SELECT
@@ -164,27 +208,31 @@ function getParticipants(giveawayId) {
             robloxUsername
         FROM participants
         WHERE giveawayId = ?
-    `).all(giveawayId);
+    `).all(
+        giveawayId
+    );
 }
 
+// =====================================================
+// GET GIVEAWAY
+// =====================================================
 
-// ==========================================
-// Get Giveaway
-// ==========================================
-
-function getGiveaway(id) {
+function getGiveaway(
+    id
+) {
 
     return db.prepare(`
         SELECT *
         FROM giveaways
         WHERE id = ?
-    `).get(id);
+    `).get(
+        id
+    );
 }
 
-
-// ==========================================
-// Get Active Giveaways
-// ==========================================
+// =====================================================
+// GET ACTIVE GIVEAWAYS
+// =====================================================
 
 function getActiveGiveaways() {
 
@@ -195,26 +243,30 @@ function getActiveGiveaways() {
     `).all();
 }
 
+// =====================================================
+// END GIVEAWAY
+// =====================================================
 
-// ==========================================
-// End Giveaway
-// ==========================================
-
-function endGiveaway(id) {
+function endGiveaway(
+    id
+) {
 
     db.prepare(`
         UPDATE giveaways
         SET ended = 1
         WHERE id = ?
-    `).run(id);
+    `).run(
+        id
+    );
 }
 
+// =====================================================
+// WINNERS
+// =====================================================
 
-// ==========================================
-// Save Winner
-// ==========================================
-
-function addWinner(data) {
+function addWinner(
+    data
+) {
 
     db.prepare(`
         INSERT INTO giveaway_winners
@@ -224,6 +276,7 @@ function addWinner(data) {
             discordTag,
             robloxUsername
         )
+
         VALUES (?, ?, ?, ?)
     `).run(
         data.giveawayId,
@@ -234,11 +287,9 @@ function addWinner(data) {
 }
 
 
-// ==========================================
-// Get Winners
-// ==========================================
-
-function getWinners(giveawayId) {
+function getWinners(
+    giveawayId
+) {
 
     return db.prepare(`
         SELECT
@@ -247,29 +298,31 @@ function getWinners(giveawayId) {
             robloxUsername
         FROM giveaway_winners
         WHERE giveawayId = ?
-    `).all(giveawayId);
+    `).all(
+        giveawayId
+    );
 }
 
-
-// ==========================================
-// Export
-// ==========================================
+// =====================================================
+// EXPORTS
+// =====================================================
 
 module.exports = {
 
-    // Giveaway configuration
     setGiveawayConfig,
     getGiveawayConfig,
 
-    // Giveaway
     createGiveaway,
     updateMessageId,
+
     addParticipant,
     getParticipants,
+
     getGiveaway,
     getActiveGiveaways,
+
     endGiveaway,
+
     addWinner,
     getWinners
-
 };
