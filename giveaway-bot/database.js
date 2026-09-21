@@ -1,28 +1,35 @@
 const Database = require("better-sqlite3");
 
-// =====================================================
-// DATABASE
-// =====================================================
-
 const db = new Database("giveaways.db");
 
 db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = OFF");
+db.pragma("foreign_keys = ON");
 
 // =====================================================
 // HELPERS
 // =====================================================
 
 function getColumns(tableName) {
-    return db.prepare(`
-        PRAGMA table_info(${tableName})
-    `).all();
+    return db
+        .prepare(`PRAGMA table_info(${tableName})`)
+        .all();
 }
 
 function hasColumn(tableName, columnName) {
     return getColumns(tableName).some(
         column => column.name === columnName
     );
+}
+
+function tableExists(tableName) {
+    return !!db
+        .prepare(`
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+            AND name = ?
+        `)
+        .get(tableName);
 }
 
 function addColumnIfMissing(
@@ -32,10 +39,10 @@ function addColumnIfMissing(
 ) {
     if (!hasColumn(tableName, columnName)) {
 
-        db.prepare(`
+        db.exec(`
             ALTER TABLE ${tableName}
             ADD COLUMN ${columnName} ${definition}
-        `).run();
+        `);
 
         console.log(
             `✅ Added missing column ${columnName} to ${tableName}`
@@ -44,111 +51,105 @@ function addColumnIfMissing(
 }
 
 // =====================================================
-// BASE TABLES
+// INITIAL TABLES
 // =====================================================
 
 db.exec(`
-    CREATE TABLE IF NOT EXISTS giveaway_configs (
-        guildId TEXT PRIMARY KEY,
-        staffRoleId TEXT,
-        specialStaffRoleId TEXT
-    );
 
     CREATE TABLE IF NOT EXISTS giveaways (
+
         id TEXT PRIMARY KEY,
+
         guildId TEXT NOT NULL,
+
         channelId TEXT NOT NULL,
+
         messageId TEXT,
+
         robux INTEGER NOT NULL,
+
         winners INTEGER NOT NULL,
+
         endTime INTEGER NOT NULL,
+
         ended INTEGER NOT NULL DEFAULT 0,
+
+        createdAt INTEGER,
+
         hostId TEXT,
-        specialRoleId TEXT,
-        createdAt INTEGER
+
+        specialRoleId TEXT
     );
 
     CREATE TABLE IF NOT EXISTS participants (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
         giveawayId TEXT NOT NULL,
+
         discordId TEXT NOT NULL,
-        discordTag TEXT NOT NULL,
+
+        discordTag TEXT,
+
         robloxUsername TEXT NOT NULL,
+
         createdAt INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS winners (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
         giveawayId TEXT NOT NULL,
+
         discordId TEXT NOT NULL,
-        discordTag TEXT NOT NULL,
+
+        discordTag TEXT,
+
         robloxUsername TEXT NOT NULL,
+
         createdAt INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS giveaway_configs (
+
+        guildId TEXT PRIMARY KEY,
+
+        staffRoleId TEXT,
+
+        specialStaffRoleId TEXT
+    );
+
 `);
-
-// =====================================================
-// GIVEAWAY CONFIG MIGRATION
-// =====================================================
-
-addColumnIfMissing(
-    "giveaway_configs",
-    "staffRoleId",
-    "TEXT"
-);
-
-addColumnIfMissing(
-    "giveaway_configs",
-    "specialStaffRoleId",
-    "TEXT"
-);
 
 // =====================================================
 // GIVEAWAYS MIGRATION
 // =====================================================
 
-addColumnIfMissing(
-    "giveaways",
-    "messageId",
-    "TEXT"
-);
+if (tableExists("giveaways")) {
 
-addColumnIfMissing(
-    "giveaways",
-    "ended",
-    "INTEGER NOT NULL DEFAULT 0"
-);
+    addColumnIfMissing(
+        "giveaways",
+        "createdAt",
+        "INTEGER"
+    );
 
-addColumnIfMissing(
-    "giveaways",
-    "hostId",
-    "TEXT"
-);
+    addColumnIfMissing(
+        "giveaways",
+        "hostId",
+        "TEXT"
+    );
 
-addColumnIfMissing(
-    "giveaways",
-    "specialRoleId",
-    "TEXT"
-);
+    addColumnIfMissing(
+        "giveaways",
+        "specialRoleId",
+        "TEXT"
+    );
 
-addColumnIfMissing(
-    "giveaways",
-    "createdAt",
-    "INTEGER"
-);
-
-// Fill missing createdAt values
-try {
-
-    db.prepare(`
-        UPDATE giveaways
-        SET createdAt = ?
-        WHERE createdAt IS NULL
-    `).run(Date.now());
-
-} catch (error) {
-
-    console.error(
-        "⚠️ Could not update giveaway createdAt:",
-        error.message
+    addColumnIfMissing(
+        "giveaways",
+        "ended",
+        "INTEGER NOT NULL DEFAULT 0"
     );
 }
 
@@ -156,82 +157,461 @@ try {
 // PARTICIPANTS MIGRATION
 // =====================================================
 
-addColumnIfMissing(
-    "participants",
-    "discordTag",
-    "TEXT"
-);
+if (tableExists("participants")) {
 
-addColumnIfMissing(
-    "participants",
-    "robloxUsername",
-    "TEXT"
-);
+    const columns =
+        getColumns("participants");
 
-addColumnIfMissing(
-    "participants",
-    "createdAt",
-    "INTEGER"
-);
+    const hasId =
+        columns.some(
+            column =>
+                column.name === "id"
+        );
+
+    const hasCreatedAt =
+        columns.some(
+            column =>
+                column.name === "createdAt"
+        );
+
+    const hasDiscordTag =
+        columns.some(
+            column =>
+                column.name === "discordTag"
+        );
+
+    if (!hasId) {
+
+        console.log(
+            "⚠️ Participants table is missing id. Migrating table..."
+        );
+
+        db.exec(`
+            ALTER TABLE participants
+            RENAME TO participants_old;
+        `);
+
+        db.exec(`
+
+            CREATE TABLE participants (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                giveawayId TEXT NOT NULL,
+
+                discordId TEXT NOT NULL,
+
+                discordTag TEXT,
+
+                robloxUsername TEXT NOT NULL,
+
+                createdAt INTEGER
+            );
+
+        `);
+
+        const oldColumns =
+            getColumns("participants_old")
+                .map(column => column.name);
+
+        const oldHasCreatedAt =
+            oldColumns.includes(
+                "createdAt"
+            );
+
+        const oldHasDiscordTag =
+            oldColumns.includes(
+                "discordTag"
+            );
+
+        if (
+            oldHasCreatedAt &&
+            oldHasDiscordTag
+        ) {
+
+            db.exec(`
+
+                INSERT INTO participants (
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername,
+                    createdAt
+                )
+
+                SELECT
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername,
+                    createdAt
+
+                FROM participants_old;
+
+            `);
+
+        } else if (oldHasDiscordTag) {
+
+            db.exec(`
+
+                INSERT INTO participants (
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername
+                )
+
+                SELECT
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername
+
+                FROM participants_old;
+
+            `);
+
+        } else {
+
+            db.exec(`
+
+                INSERT INTO participants (
+                    giveawayId,
+                    discordId,
+                    robloxUsername
+                )
+
+                SELECT
+                    giveawayId,
+                    discordId,
+                    robloxUsername
+
+                FROM participants_old;
+
+            `);
+        }
+
+        db.exec(`
+            DROP TABLE participants_old;
+        `);
+
+        console.log(
+            "✅ Participants table migrated."
+        );
+
+    } else {
+
+        if (!hasDiscordTag) {
+
+            addColumnIfMissing(
+                "participants",
+                "discordTag",
+                "TEXT"
+            );
+        }
+
+        if (!hasCreatedAt) {
+
+            addColumnIfMissing(
+                "participants",
+                "createdAt",
+                "INTEGER"
+            );
+        }
+    }
+}
 
 // =====================================================
 // WINNERS MIGRATION
 // =====================================================
 
-addColumnIfMissing(
-    "winners",
-    "discordTag",
-    "TEXT"
-);
+if (tableExists("winners")) {
 
-addColumnIfMissing(
-    "winners",
-    "robloxUsername",
-    "TEXT"
-);
+    const columns =
+        getColumns("winners");
 
-addColumnIfMissing(
-    "winners",
-    "createdAt",
-    "INTEGER"
-);
+    const hasId =
+        columns.some(
+            column =>
+                column.name === "id"
+        );
+
+    const hasCreatedAt =
+        columns.some(
+            column =>
+                column.name === "createdAt"
+        );
+
+    const hasDiscordTag =
+        columns.some(
+            column =>
+                column.name === "discordTag"
+        );
+
+    if (!hasId) {
+
+        console.log(
+            "⚠️ Winners table is missing id. Migrating table..."
+        );
+
+        db.exec(`
+            ALTER TABLE winners
+            RENAME TO winners_old;
+        `);
+
+        db.exec(`
+
+            CREATE TABLE winners (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                giveawayId TEXT NOT NULL,
+
+                discordId TEXT NOT NULL,
+
+                discordTag TEXT,
+
+                robloxUsername TEXT NOT NULL,
+
+                createdAt INTEGER
+            );
+
+        `);
+
+        const oldColumns =
+            getColumns("winners_old")
+                .map(column => column.name);
+
+        const oldHasCreatedAt =
+            oldColumns.includes(
+                "createdAt"
+            );
+
+        const oldHasDiscordTag =
+            oldColumns.includes(
+                "discordTag"
+            );
+
+        if (
+            oldHasCreatedAt &&
+            oldHasDiscordTag
+        ) {
+
+            db.exec(`
+
+                INSERT INTO winners (
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername,
+                    createdAt
+                )
+
+                SELECT
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername,
+                    createdAt
+
+                FROM winners_old;
+
+            `);
+
+        } else if (oldHasDiscordTag) {
+
+            db.exec(`
+
+                INSERT INTO winners (
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername
+                )
+
+                SELECT
+                    giveawayId,
+                    discordId,
+                    discordTag,
+                    robloxUsername
+
+                FROM winners_old;
+
+            `);
+
+        } else {
+
+            db.exec(`
+
+                INSERT INTO winners (
+                    giveawayId,
+                    discordId,
+                    robloxUsername
+                )
+
+                SELECT
+                    giveawayId,
+                    discordId,
+                    robloxUsername
+
+                FROM winners_old;
+
+            `);
+        }
+
+        db.exec(`
+            DROP TABLE winners_old;
+        `);
+
+        console.log(
+            "✅ Winners table migrated."
+        );
+
+    } else {
+
+        if (!hasDiscordTag) {
+
+            addColumnIfMissing(
+                "winners",
+                "discordTag",
+                "TEXT"
+            );
+        }
+
+        if (!hasCreatedAt) {
+
+            addColumnIfMissing(
+                "winners",
+                "createdAt",
+                "INTEGER"
+            );
+        }
+    }
+}
 
 // =====================================================
-// DEFAULT VALUES
+// GIVEAWAY CONFIG MIGRATION
 // =====================================================
+//
+// مهم:
+// staffRoleId لازم يكون nullable.
+// ده بيمنع الخطأ:
+// SQLITE_CONSTRAINT_NOT_NULL
+//
+// لأننا ممكن نعمل setup للـ special giveaway
+// من غير ما يكون normal giveaway متظبط.
+//
 
-try {
+if (tableExists("giveaway_configs")) {
 
-    db.prepare(`
-        UPDATE participants
-        SET createdAt = ?
-        WHERE createdAt IS NULL
-    `).run(Date.now());
+    const columns =
+        getColumns("giveaway_configs");
 
-} catch {}
+    const staffColumn =
+        columns.find(
+            column =>
+                column.name === "staffRoleId"
+        );
 
-try {
+    if (
+        staffColumn &&
+        staffColumn.notnull === 1
+    ) {
 
-    db.prepare(`
-        UPDATE winners
-        SET createdAt = ?
-        WHERE createdAt IS NULL
-    `).run(Date.now());
+        console.log(
+            "⚠️ giveaway_configs has NOT NULL staffRoleId. Migrating table..."
+        );
 
-} catch {}
+        db.exec(`
+            ALTER TABLE giveaway_configs
+            RENAME TO giveaway_configs_old;
+        `);
 
-try {
+        db.exec(`
 
-    db.prepare(`
-        UPDATE giveaways
-        SET ended = 0
-        WHERE ended IS NULL
-    `).run();
+            CREATE TABLE giveaway_configs (
 
-} catch {}
+                guildId TEXT PRIMARY KEY,
+
+                staffRoleId TEXT,
+
+                specialStaffRoleId TEXT
+            );
+
+        `);
+
+        const oldColumns =
+            getColumns("giveaway_configs_old")
+                .map(column => column.name);
+
+        const hasOldSpecialRole =
+            oldColumns.includes(
+                "specialStaffRoleId"
+            );
+
+        if (hasOldSpecialRole) {
+
+            db.exec(`
+
+                INSERT INTO giveaway_configs (
+                    guildId,
+                    staffRoleId,
+                    specialStaffRoleId
+                )
+
+                SELECT
+                    guildId,
+                    staffRoleId,
+                    specialStaffRoleId
+
+                FROM giveaway_configs_old;
+
+            `);
+
+        } else {
+
+            db.exec(`
+
+                INSERT INTO giveaway_configs (
+                    guildId,
+                    staffRoleId
+                )
+
+                SELECT
+                    guildId,
+                    staffRoleId
+
+                FROM giveaway_configs_old;
+
+            `);
+        }
+
+        db.exec(`
+            DROP TABLE giveaway_configs_old;
+        `);
+
+        console.log(
+            "✅ giveaway_configs table migrated."
+        );
+
+    } else {
+
+        addColumnIfMissing(
+            "giveaway_configs",
+            "staffRoleId",
+            "TEXT"
+        );
+
+        addColumnIfMissing(
+            "giveaway_configs",
+            "specialStaffRoleId",
+            "TEXT"
+        );
+    }
+}
 
 // =====================================================
-// CONFIG
+// GIVEAWAY CONFIG
 // =====================================================
 
 function getGiveawayConfig(
@@ -239,18 +619,18 @@ function getGiveawayConfig(
 ) {
 
     return db.prepare(`
+
         SELECT
             guildId,
             staffRoleId,
             specialStaffRoleId
+
         FROM giveaway_configs
+
         WHERE guildId = ?
+
     `).get(guildId);
 }
-
-// =====================================================
-// SET NORMAL GIVEAWAY STAFF
-// =====================================================
 
 function setGiveawayConfig(
     guildId,
@@ -258,18 +638,20 @@ function setGiveawayConfig(
 ) {
 
     const existing =
-        db.prepare(`
-            SELECT *
-            FROM giveaway_configs
-            WHERE guildId = ?
-        `).get(guildId);
+        getGiveawayConfig(
+            guildId
+        );
 
     if (existing) {
 
         db.prepare(`
+
             UPDATE giveaway_configs
+
             SET staffRoleId = ?
+
             WHERE guildId = ?
+
         `).run(
             staffRoleId,
             guildId
@@ -277,28 +659,22 @@ function setGiveawayConfig(
 
     } else {
 
-        // specialStaffRoleId can stay NULL
         db.prepare(`
+
             INSERT INTO giveaway_configs (
                 guildId,
                 staffRoleId,
                 specialStaffRoleId
             )
+
             VALUES (?, ?, NULL)
+
         `).run(
             guildId,
             staffRoleId
         );
     }
-
-    console.log(
-        `✅ Normal Giveaway Staff configured for ${guildId}: ${staffRoleId}`
-    );
 }
-
-// =====================================================
-// SET SPECIAL GIVEAWAY STAFF
-// =====================================================
 
 function setSpecialGiveawayConfig(
     guildId,
@@ -306,18 +682,20 @@ function setSpecialGiveawayConfig(
 ) {
 
     const existing =
-        db.prepare(`
-            SELECT *
-            FROM giveaway_configs
-            WHERE guildId = ?
-        `).get(guildId);
+        getGiveawayConfig(
+            guildId
+        );
 
     if (existing) {
 
         db.prepare(`
+
             UPDATE giveaway_configs
+
             SET specialStaffRoleId = ?
+
             WHERE guildId = ?
+
         `).run(
             specialStaffRoleId,
             guildId
@@ -325,40 +703,25 @@ function setSpecialGiveawayConfig(
 
     } else {
 
-        /*
-         * IMPORTANT:
-         *
-         * Some old databases had staffRoleId
-         * as NOT NULL.
-         *
-         * We therefore store an empty string
-         * instead of NULL when only the special
-         * giveaway role has been configured.
-         *
-         * The bot treats "" as "not configured".
-         */
-
         db.prepare(`
+
             INSERT INTO giveaway_configs (
                 guildId,
                 staffRoleId,
                 specialStaffRoleId
             )
-            VALUES (?, ?, ?)
+
+            VALUES (?, NULL, ?)
+
         `).run(
             guildId,
-            "",
             specialStaffRoleId
         );
     }
-
-    console.log(
-        `✅ Special Giveaway Staff configured for ${guildId}: ${specialStaffRoleId}`
-    );
 }
 
 // =====================================================
-// CREATE GIVEAWAY
+// GIVEAWAYS
 // =====================================================
 
 function createGiveaway(
@@ -366,7 +729,9 @@ function createGiveaway(
 ) {
 
     db.prepare(`
+
         INSERT INTO giveaways (
+
             id,
             guildId,
             channelId,
@@ -375,11 +740,14 @@ function createGiveaway(
             winners,
             endTime,
             ended,
+            createdAt,
             hostId,
-            specialRoleId,
-            createdAt
+            specialRoleId
+
         )
+
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
     `).run(
 
         giveaway.id,
@@ -396,19 +764,20 @@ function createGiveaway(
 
         giveaway.endTime,
 
-        0,
+        giveaway.ended
+            ? 1
+            : 0,
 
-        giveaway.hostId || null,
+        giveaway.createdAt ||
+            Date.now(),
 
-        giveaway.specialRoleId || null,
+        giveaway.hostId ||
+            null,
 
-        Date.now()
+        giveaway.specialRoleId ||
+            null
     );
 }
-
-// =====================================================
-// UPDATE MESSAGE ID
-// =====================================================
 
 function updateMessageId(
     giveawayId,
@@ -416,42 +785,65 @@ function updateMessageId(
 ) {
 
     db.prepare(`
+
         UPDATE giveaways
+
         SET messageId = ?
+
         WHERE id = ?
+
     `).run(
         messageId,
         giveawayId
     );
 }
 
-// =====================================================
-// GET GIVEAWAY
-// =====================================================
-
 function getGiveaway(
     id
 ) {
 
     return db.prepare(`
+
         SELECT *
+
         FROM giveaways
+
         WHERE id = ?
+
     `).get(id);
 }
-
-// =====================================================
-// END GIVEAWAY
-// =====================================================
 
 function endGiveaway(
     id
 ) {
 
     db.prepare(`
+
         UPDATE giveaways
+
         SET ended = 1
+
         WHERE id = ?
+
+    `).run(id);
+}
+
+// =====================================================
+// CANCEL GIVEAWAY
+// =====================================================
+
+function cancelGiveaway(
+    id
+) {
+
+    db.prepare(`
+
+        UPDATE giveaways
+
+        SET ended = 1
+
+        WHERE id = ?
+
     `).run(id);
 }
 
@@ -462,10 +854,15 @@ function endGiveaway(
 function getActiveGiveaways() {
 
     return db.prepare(`
+
         SELECT *
+
         FROM giveaways
+
         WHERE ended = 0
+
         ORDER BY endTime ASC
+
     `).all();
 }
 
@@ -477,55 +874,123 @@ function addParticipant(
     data
 ) {
 
-    /*
-     * We intentionally do NOT use "id"
-     * because older databases may not have
-     * an id column.
-     */
-
     db.prepare(`
-        INSERT INTO participants (
+
+        INSERT OR IGNORE INTO participants (
+
             giveawayId,
             discordId,
             discordTag,
             robloxUsername,
             createdAt
+
         )
+
         VALUES (?, ?, ?, ?, ?)
+
     `).run(
 
         data.giveawayId,
 
         data.discordId,
 
-        data.discordTag,
+        data.discordTag ||
+            null,
 
         data.robloxUsername,
 
-        Date.now()
+        data.createdAt ||
+            Date.now()
     );
 }
-
-// =====================================================
-// GET PARTICIPANTS
-// =====================================================
 
 function getParticipants(
     giveawayId
 ) {
 
-    /*
-     * rowid exists automatically in normal
-     * SQLite tables and works even if the old
-     * table does not have an "id" column.
-     */
+    return db.prepare(`
+
+        SELECT *
+
+        FROM participants
+
+        WHERE giveawayId = ?
+
+        ORDER BY id ASC
+
+    `).all(giveawayId);
+}
+
+function getParticipant(
+    giveawayId,
+    discordId
+) {
 
     return db.prepare(`
+
         SELECT *
+
         FROM participants
+
         WHERE giveawayId = ?
-        ORDER BY rowid ASC
-    `).all(giveawayId);
+
+        AND discordId = ?
+
+        LIMIT 1
+
+    `).get(
+        giveawayId,
+        discordId
+    );
+}
+
+function isParticipant(
+    giveawayId,
+    discordId
+) {
+
+    const participant =
+        getParticipant(
+            giveawayId,
+            discordId
+        );
+
+    return !!participant;
+}
+
+function removeParticipant(
+    giveawayId,
+    discordId
+) {
+
+    const result =
+        db.prepare(`
+
+            DELETE FROM participants
+
+            WHERE giveawayId = ?
+
+            AND discordId = ?
+
+        `).run(
+            giveawayId,
+            discordId
+        );
+
+    return result.changes > 0;
+}
+
+function removeAllParticipants(
+    giveawayId
+) {
+
+    db.prepare(`
+
+        DELETE FROM participants
+
+        WHERE giveawayId = ?
+
+    `).run(giveawayId);
 }
 
 // =====================================================
@@ -537,55 +1002,73 @@ function addWinner(
 ) {
 
     db.prepare(`
-        INSERT INTO winners (
+
+        INSERT OR IGNORE INTO winners (
+
             giveawayId,
             discordId,
             discordTag,
             robloxUsername,
             createdAt
+
         )
+
         VALUES (?, ?, ?, ?, ?)
+
     `).run(
 
         data.giveawayId,
 
         data.discordId,
 
-        data.discordTag,
+        data.discordTag ||
+            null,
 
         data.robloxUsername,
 
-        Date.now()
+        data.createdAt ||
+            Date.now()
     );
 }
-
-// =====================================================
-// GET WINNERS
-// =====================================================
 
 function getWinners(
     giveawayId
 ) {
 
     return db.prepare(`
+
         SELECT *
+
         FROM winners
+
         WHERE giveawayId = ?
-        ORDER BY rowid ASC
+
+        ORDER BY id ASC
+
     `).all(giveawayId);
 }
 
-// =====================================================
-// CLOSE DATABASE
-// =====================================================
+function getWinner(
+    giveawayId,
+    discordId
+) {
 
-function closeDatabase() {
+    return db.prepare(`
 
-    try {
+        SELECT *
 
-        db.close();
+        FROM winners
 
-    } catch {}
+        WHERE giveawayId = ?
+
+        AND discordId = ?
+
+        LIMIT 1
+
+    `).get(
+        giveawayId,
+        discordId
+    );
 }
 
 // =====================================================
@@ -595,8 +1078,8 @@ function closeDatabase() {
 module.exports = {
 
     // Config
-    setGiveawayConfig,
     getGiveawayConfig,
+    setGiveawayConfig,
     setSpecialGiveawayConfig,
 
     // Giveaways
@@ -604,16 +1087,19 @@ module.exports = {
     updateMessageId,
     getGiveaway,
     endGiveaway,
+    cancelGiveaway,
     getActiveGiveaways,
 
     // Participants
     addParticipant,
     getParticipants,
+    getParticipant,
+    isParticipant,
+    removeParticipant,
+    removeAllParticipants,
 
     // Winners
     addWinner,
     getWinners,
-
-    // Database
-    closeDatabase
+    getWinner
 };
