@@ -1,6 +1,9 @@
 const Database = require("better-sqlite3");
+const path = require("path");
 
-const db = new Database("giveaways.db");
+const db = new Database(
+    path.join(__dirname, "giveaways.db")
+);
 
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
@@ -118,6 +121,25 @@ db.exec(`
         staffRoleId TEXT,
 
         specialStaffRoleId TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS kicked_participants (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        giveawayId TEXT NOT NULL,
+
+        discordId TEXT NOT NULL,
+
+        discordTag TEXT,
+
+        robloxUsername TEXT,
+
+        reason TEXT NOT NULL,
+
+        kickedBy TEXT NOT NULL,
+
+        createdAt INTEGER
     );
 
 `);
@@ -492,15 +514,6 @@ if (tableExists("winners")) {
 // =====================================================
 // GIVEAWAY CONFIG MIGRATION
 // =====================================================
-//
-// مهم:
-// staffRoleId لازم يكون nullable.
-// ده بيمنع الخطأ:
-// SQLITE_CONSTRAINT_NOT_NULL
-//
-// لأننا ممكن نعمل setup للـ special giveaway
-// من غير ما يكون normal giveaway متظبط.
-//
 
 if (tableExists("giveaway_configs")) {
 
@@ -828,10 +841,6 @@ function endGiveaway(
     `).run(id);
 }
 
-// =====================================================
-// CANCEL GIVEAWAY
-// =====================================================
-
 function cancelGiveaway(
     id
 ) {
@@ -846,10 +855,6 @@ function cancelGiveaway(
 
     `).run(id);
 }
-
-// =====================================================
-// ACTIVE GIVEAWAYS
-// =====================================================
 
 function getActiveGiveaways() {
 
@@ -949,13 +954,10 @@ function isParticipant(
     discordId
 ) {
 
-    const participant =
-        getParticipant(
-            giveawayId,
-            discordId
-        );
-
-    return !!participant;
+    return !!getParticipant(
+        giveawayId,
+        discordId
+    );
 }
 
 function removeParticipant(
@@ -991,6 +993,106 @@ function removeAllParticipants(
         WHERE giveawayId = ?
 
     `).run(giveawayId);
+}
+
+// =====================================================
+// KICKED PARTICIPANTS
+// =====================================================
+
+function addKickedParticipant(
+    data
+) {
+
+    db.prepare(`
+
+        INSERT INTO kicked_participants (
+
+            giveawayId,
+            discordId,
+            discordTag,
+            robloxUsername,
+            reason,
+            kickedBy,
+            createdAt
+
+        )
+
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+
+    `).run(
+
+        data.giveawayId,
+
+        data.discordId,
+
+        data.discordTag ||
+            null,
+
+        data.robloxUsername ||
+            null,
+
+        data.reason,
+
+        data.kickedBy,
+
+        data.createdAt ||
+            Date.now()
+    );
+}
+
+function getKickedParticipant(
+    giveawayId,
+    discordId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM kicked_participants
+
+        WHERE giveawayId = ?
+
+        AND discordId = ?
+
+        ORDER BY id DESC
+
+        LIMIT 1
+
+    `).get(
+        giveawayId,
+        discordId
+    );
+}
+
+function isKickedParticipant(
+    giveawayId,
+    discordId
+) {
+
+    return !!getKickedParticipant(
+        giveawayId,
+        discordId
+    );
+}
+
+function removeKickedParticipant(
+    giveawayId,
+    discordId
+) {
+
+    db.prepare(`
+
+        DELETE FROM kicked_participants
+
+        WHERE giveawayId = ?
+
+        AND discordId = ?
+
+    `).run(
+        giveawayId,
+        discordId
+    );
 }
 
 // =====================================================
@@ -1097,6 +1199,12 @@ module.exports = {
     isParticipant,
     removeParticipant,
     removeAllParticipants,
+
+    // Kicked participants
+    addKickedParticipant,
+    getKickedParticipant,
+    isKickedParticipant,
+    removeKickedParticipant,
 
     // Winners
     addWinner,
