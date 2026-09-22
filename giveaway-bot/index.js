@@ -35,19 +35,22 @@ function parseDuration(input) {
         return null;
     }
 
-    const value = input
-        .trim()
-        .toLowerCase();
+    const value =
+        input
+            .trim()
+            .toLowerCase();
 
-    const match = value.match(
-        /^(\d+)\s*(m|h|d|w)$/
-    );
+    const match =
+        value.match(
+            /^(\d+)\s*(m|h|d|w)$/
+        );
 
     if (!match) {
         return null;
     }
 
-    const number = Number(match[1]);
+    const number =
+        Number(match[1]);
 
     if (number <= 0) {
         return null;
@@ -58,19 +61,23 @@ function parseDuration(input) {
     switch (match[2]) {
 
         case "m":
-            seconds = number * 60;
+            seconds =
+                number * 60;
             break;
 
         case "h":
-            seconds = number * 60 * 60;
+            seconds =
+                number * 60 * 60;
             break;
 
         case "d":
-            seconds = number * 60 * 60 * 24;
+            seconds =
+                number * 60 * 60 * 24;
             break;
 
         case "w":
-            seconds = number * 60 * 60 * 24 * 7;
+            seconds =
+                number * 60 * 60 * 24 * 7;
             break;
 
         default:
@@ -93,10 +100,6 @@ function parseDuration(input) {
 // =====================================================
 
 const commands = [
-
-    // =================================================
-    // SETUP NORMAL GIVEAWAY
-    // =================================================
 
     new SlashCommandBuilder()
 
@@ -121,10 +124,6 @@ const commands = [
 
         .toJSON(),
 
-    // =================================================
-    // SETUP SPECIAL GIVEAWAY
-    // =================================================
-
     new SlashCommandBuilder()
 
         .setName("setup-special-giveaway")
@@ -147,10 +146,6 @@ const commands = [
         )
 
         .toJSON(),
-
-    // =================================================
-    // NORMAL GIVEAWAY
-    // =================================================
 
     new SlashCommandBuilder()
 
@@ -200,10 +195,6 @@ const commands = [
         )
 
         .toJSON(),
-
-    // =================================================
-    // SPECIAL GIVEAWAY
-    // =================================================
 
     new SlashCommandBuilder()
 
@@ -270,11 +261,12 @@ const commands = [
 
 async function registerCommands() {
 
-    const rest = new REST({
-        version: "10"
-    }).setToken(
-        process.env.GIVEAWAY_BOT_TOKEN
-    );
+    const rest =
+        new REST({
+            version: "10"
+        }).setToken(
+            process.env.GIVEAWAY_BOT_TOKEN
+        );
 
     try {
 
@@ -334,16 +326,17 @@ async function registerCommands() {
 }
 
 // =====================================================
-// NORMAL GIVEAWAY STAFF CHECK
+// NORMAL STAFF
 // =====================================================
 
-function isGiveawayStaff(interaction) {
+function isGiveawayStaff(
+    interaction
+) {
 
-    if (!interaction.guild) {
-        return false;
-    }
-
-    if (!interaction.member) {
+    if (
+        !interaction.guild ||
+        !interaction.member
+    ) {
         return false;
     }
 
@@ -373,16 +366,17 @@ function isGiveawayStaff(interaction) {
 }
 
 // =====================================================
-// SPECIAL GIVEAWAY STAFF CHECK
+// SPECIAL STAFF
 // =====================================================
 
-function isSpecialGiveawayStaff(interaction) {
+function isSpecialGiveawayStaff(
+    interaction
+) {
 
-    if (!interaction.guild) {
-        return false;
-    }
-
-    if (!interaction.member) {
+    if (
+        !interaction.guild ||
+        !interaction.member
+    ) {
         return false;
     }
 
@@ -412,7 +406,7 @@ function isSpecialGiveawayStaff(interaction) {
 }
 
 // =====================================================
-// GIVEAWAY EMBED
+// EMBED
 // =====================================================
 
 function createGiveawayEmbed(
@@ -456,7 +450,7 @@ function createGiveawayEmbed(
 
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
 
-        `🎉 Press **Join Giveaway** to enter!\n` +
+        `🎉 Press **Join Giveaway** to enter!\n\n` +
 
         `📝 You will be asked for your Roblox Username.`;
 
@@ -479,7 +473,7 @@ function createGiveawayEmbed(
 }
 
 // =====================================================
-// GIVEAWAY BUTTONS
+// MAIN BUTTONS
 // =====================================================
 
 function createGiveawayButtons(
@@ -552,6 +546,264 @@ function createGiveawayButtons(
 }
 
 // =====================================================
+// PARTICIPANT LIST
+// =====================================================
+
+async function showParticipants(
+    interaction,
+    giveawayId,
+    page = 0
+) {
+
+    const giveaway =
+        db.getGiveaway(
+            giveawayId
+        );
+
+    if (!giveaway) {
+
+        return interaction.reply({
+
+            content:
+                "❌ Giveaway not found.",
+
+            ephemeral: true
+        });
+    }
+
+    const participants =
+        db.getParticipants(
+            giveawayId
+        );
+
+    if (
+        participants.length === 0
+    ) {
+
+        return interaction.reply({
+
+            content:
+                "👥 **Participants**\n\n" +
+                "No one has joined this giveaway yet.",
+
+            ephemeral: true
+        });
+    }
+
+    const isHost =
+        giveaway.hostId ===
+        interaction.user.id;
+
+    const perPage = 4;
+
+    const totalPages =
+        Math.ceil(
+            participants.length /
+            perPage
+        );
+
+    const safePage =
+        Math.max(
+            0,
+            Math.min(
+                page,
+                totalPages - 1
+            )
+        );
+
+    const start =
+        safePage * perPage;
+
+    const current =
+        participants.slice(
+            start,
+            start + perPage
+        );
+
+    let description = "";
+
+    current.forEach(
+        (participant, index) => {
+
+            const number =
+                start + index + 1;
+
+            description +=
+
+                `**${number}.** <@${participant.discordId}>\n` +
+
+                `> Roblox: **${participant.robloxUsername}**\n\n`;
+        }
+    );
+
+    const embed =
+        new EmbedBuilder()
+
+            .setTitle(
+                "👥 Giveaway Participants"
+            )
+
+            .setDescription(
+                description
+            )
+
+            .addFields({
+
+                name:
+                    "Total Participants",
+
+                value:
+                    `**${participants.length}**`,
+
+                inline: true
+
+            }, {
+
+                name:
+                    "Page",
+
+                value:
+                    `**${safePage + 1} / ${totalPages}**`,
+
+                inline: true
+            })
+
+            .setFooter({
+
+                text:
+                    isHost
+                        ? "You are the giveaway host. You can kick participants."
+                        : "Only the giveaway host can kick participants."
+            });
+
+    const rows = [];
+
+    // =================================================
+    // KICK BUTTONS
+    // =================================================
+
+    if (isHost) {
+
+        for (
+            const participant of current
+        ) {
+
+            const label =
+                participant.discordTag
+                    ? `Kick ${participant.discordTag}`
+                    : `Kick #${start + current.indexOf(participant) + 1}`;
+
+            const kickButton =
+                new ButtonBuilder()
+
+                    .setCustomId(
+                        `kick_${giveawayId}_${participant.discordId}`
+                    )
+
+                    .setLabel(
+                        label.substring(0, 80)
+                    )
+
+                    .setEmoji(
+                        "👢"
+                    )
+
+                    .setStyle(
+                        ButtonStyle.Danger
+                    );
+
+            rows.push(
+                new ActionRowBuilder()
+                    .addComponents(
+                        kickButton
+                    )
+            );
+        }
+    }
+
+    // =================================================
+    // PAGINATION
+    // =================================================
+
+    if (
+        totalPages > 1
+    ) {
+
+        const navigation = [];
+
+        const previous =
+            new ButtonBuilder()
+
+                .setCustomId(
+                    `participants_page_${giveawayId}_${safePage - 1}`
+                )
+
+                .setLabel(
+                    "Previous"
+                )
+
+                .setEmoji(
+                    "⬅️"
+                )
+
+                .setStyle(
+                    ButtonStyle.Secondary
+                )
+
+                .setDisabled(
+                    safePage === 0
+                );
+
+        const next =
+            new ButtonBuilder()
+
+                .setCustomId(
+                    `participants_page_${giveawayId}_${safePage + 1}`
+                )
+
+                .setLabel(
+                    "Next"
+                )
+
+                .setEmoji(
+                    "➡️"
+                )
+
+                .setStyle(
+                    ButtonStyle.Secondary
+                )
+
+                .setDisabled(
+                    safePage >= totalPages - 1
+                );
+
+        navigation.push(
+            previous,
+            next
+        );
+
+        rows.push(
+            new ActionRowBuilder()
+                .addComponents(
+                    navigation
+                )
+        );
+    }
+
+    return interaction.reply({
+
+        embeds: [
+            embed
+        ],
+
+        components:
+            rows,
+
+        ephemeral: true
+    });
+}
+
+// =====================================================
 // READY
 // =====================================================
 
@@ -588,16 +840,16 @@ client.on(
         try {
 
             // =================================================
-            // CHAT COMMANDS
+            // COMMANDS
             // =================================================
 
             if (
                 interaction.isChatInputCommand()
             ) {
 
-                // =============================================
-                // SETUP NORMAL
-                // =============================================
+                // =================================================
+                // SETUP GIVEAWAY
+                // =================================================
 
                 if (
                     interaction.commandName ===
@@ -675,9 +927,9 @@ client.on(
                     });
                 }
 
-                // =============================================
+                // =================================================
                 // SETUP SPECIAL
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.commandName ===
@@ -756,9 +1008,9 @@ client.on(
                     });
                 }
 
-                // =============================================
-                // NORMAL GIVEAWAY
-                // =============================================
+                // =================================================
+                // GIVEAWAY
+                // =================================================
 
                 if (
                     interaction.commandName ===
@@ -786,9 +1038,9 @@ client.on(
                     );
                 }
 
-                // =============================================
+                // =================================================
                 // SPECIAL GIVEAWAY
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.commandName ===
@@ -826,9 +1078,261 @@ client.on(
                 interaction.isButton()
             ) {
 
-                // =============================================
+                // =================================================
+                // PARTICIPANTS PAGE
+                // =================================================
+
+                if (
+                    interaction.customId.startsWith(
+                        "participants_page_"
+                    )
+                ) {
+
+                    const parts =
+                        interaction.customId.split(
+                            "_"
+                        );
+
+                    const page =
+                        Number(
+                            parts.pop()
+                        );
+
+                    const giveawayId =
+                        parts
+                            .slice(2)
+                            .join("_");
+
+                    const giveaway =
+                        db.getGiveaway(
+                            giveawayId
+                        );
+
+                    if (!giveaway) {
+
+                        return interaction.update({
+
+                            content:
+                                "❌ Giveaway not found.",
+
+                            embeds: [],
+
+                            components: []
+                        });
+                    }
+
+                    const participants =
+                        db.getParticipants(
+                            giveawayId
+                        );
+
+                    const isHost =
+                        giveaway.hostId ===
+                        interaction.user.id;
+
+                    const perPage = 4;
+
+                    const totalPages =
+                        Math.max(
+                            1,
+                            Math.ceil(
+                                participants.length /
+                                perPage
+                            )
+                        );
+
+                    const safePage =
+                        Math.max(
+                            0,
+                            Math.min(
+                                page,
+                                totalPages - 1
+                            )
+                        );
+
+                    const start =
+                        safePage * perPage;
+
+                    const current =
+                        participants.slice(
+                            start,
+                            start + perPage
+                        );
+
+                    let description = "";
+
+                    current.forEach(
+                        (participant, index) => {
+
+                            description +=
+
+                                `**${start + index + 1}.** <@${participant.discordId}>\n` +
+
+                                `> Roblox: **${participant.robloxUsername}**\n\n`;
+                        }
+                    );
+
+                    const embed =
+                        new EmbedBuilder()
+
+                            .setTitle(
+                                "👥 Giveaway Participants"
+                            )
+
+                            .setDescription(
+                                description ||
+                                "No participants on this page."
+                            )
+
+                            .addFields({
+
+                                name:
+                                    "Total Participants",
+
+                                value:
+                                    `**${participants.length}**`,
+
+                                inline: true
+
+                            }, {
+
+                                name:
+                                    "Page",
+
+                                value:
+                                    `**${safePage + 1} / ${totalPages}**`,
+
+                                inline: true
+                            })
+
+                            .setFooter({
+
+                                text:
+                                    isHost
+                                        ? "You are the giveaway host. You can kick participants."
+                                        : "Only the giveaway host can kick participants."
+                            });
+
+                    const rows = [];
+
+                    if (isHost) {
+
+                        for (
+                            const participant of current
+                        ) {
+
+                            const index =
+                                participants.indexOf(
+                                    participant
+                                );
+
+                            const label =
+                                participant.discordTag
+                                    ? `Kick ${participant.discordTag}`
+                                    : `Kick #${index + 1}`;
+
+                            const kick =
+                                new ButtonBuilder()
+
+                                    .setCustomId(
+                                        `kick_${giveawayId}_${participant.discordId}`
+                                    )
+
+                                    .setLabel(
+                                        label.substring(
+                                            0,
+                                            80
+                                        )
+                                    )
+
+                                    .setEmoji(
+                                        "👢"
+                                    )
+
+                                    .setStyle(
+                                        ButtonStyle.Danger
+                                    );
+
+                            rows.push(
+                                new ActionRowBuilder()
+                                    .addComponents(
+                                        kick
+                                    )
+                            );
+                        }
+                    }
+
+                    if (
+                        totalPages > 1
+                    ) {
+
+                        rows.push(
+
+                            new ActionRowBuilder()
+                                .addComponents(
+
+                                    new ButtonBuilder()
+
+                                        .setCustomId(
+                                            `participants_page_${giveawayId}_${safePage - 1}`
+                                        )
+
+                                        .setLabel(
+                                            "Previous"
+                                        )
+
+                                        .setEmoji(
+                                            "⬅️"
+                                        )
+
+                                        .setStyle(
+                                            ButtonStyle.Secondary
+                                        )
+
+                                        .setDisabled(
+                                            safePage === 0
+                                        ),
+
+                                    new ButtonBuilder()
+
+                                        .setCustomId(
+                                            `participants_page_${giveawayId}_${safePage + 1}`
+                                        )
+
+                                        .setLabel(
+                                            "Next"
+                                        )
+
+                                        .setEmoji(
+                                            "➡️"
+                                        )
+
+                                        .setStyle(
+                                            ButtonStyle.Secondary
+                                        )
+
+                                        .setDisabled(
+                                            safePage >=
+                                            totalPages - 1
+                                        )
+                                )
+                        );
+                    }
+
+                    return interaction.update({
+
+                        embeds: [
+                            embed
+                        ],
+
+                        components:
+                            rows
+                    });
+                }
+
+                // =================================================
                 // SHOW PARTICIPANTS
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -841,6 +1345,34 @@ client.on(
                             "participants_",
                             ""
                         );
+
+                    return showParticipants(
+                        interaction,
+                        giveawayId,
+                        0
+                    );
+                }
+
+                // =================================================
+                // KICK
+                // =================================================
+
+                if (
+                    interaction.customId.startsWith(
+                        "kick_"
+                    )
+                ) {
+
+                    const parts =
+                        interaction.customId.split(
+                            "_"
+                        );
+
+                    const giveawayId =
+                        parts[1];
+
+                    const targetDiscordId =
+                        parts[2];
 
                     const giveaway =
                         db.getGiveaway(
@@ -858,95 +1390,112 @@ client.on(
                         });
                     }
 
-                    const participants =
-                        db.getParticipants(
-                            giveawayId
-                        );
+                    // =============================================
+                    // HOST ONLY
+                    // =============================================
 
                     if (
-                        participants.length === 0
+                        giveaway.hostId !==
+                        interaction.user.id
                     ) {
 
                         return interaction.reply({
 
                             content:
-                                "👥 **Participants**\n\n" +
-                                "No one has joined this giveaway yet.",
+                                "❌ Only the giveaway host can kick participants.",
 
                             ephemeral: true
                         });
                     }
 
-                    const lines =
-                        participants.map(
-                            (participant, index) => {
-
-                                return (
-                                    `**${index + 1}.** ` +
-                                    `<@${participant.discordId}>` +
-                                    ` — Roblox: **${participant.robloxUsername}**`
-                                );
-                            }
-                        );
-
-                    const maxLength = 3800;
-
-                    let text =
-                        lines.join("\n");
-
                     if (
-                        text.length > maxLength
+                        giveaway.ended
                     ) {
 
-                        text =
-                            text.substring(
-                                0,
-                                maxLength
-                            ) +
-                            "\n\n...and more.";
+                        return interaction.reply({
+
+                            content:
+                                "❌ This giveaway has already ended.",
+
+                            ephemeral: true
+                        });
                     }
 
-                    const embed =
-                        new EmbedBuilder()
+                    const participant =
+                        db.getParticipant(
+                            giveawayId,
+                            targetDiscordId
+                        );
+
+                    if (!participant) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ This player is no longer participating in the giveaway.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    const modal =
+                        new ModalBuilder()
+
+                            .setCustomId(
+                                `kickreason_${giveawayId}_${targetDiscordId}`
+                            )
 
                             .setTitle(
-                                "👥 Giveaway Participants"
+                                "👢 Kick Participant"
+                            );
+
+                    const reasonInput =
+                        new TextInputBuilder()
+
+                            .setCustomId(
+                                "kick_reason"
                             )
 
-                            .setDescription(
-                                text
+                            .setLabel(
+                                "Reason"
                             )
 
-                            .addFields({
+                            .setPlaceholder(
+                                "Enter the reason for kicking this participant..."
+                            )
 
-                                name:
-                                    "Total Participants",
+                            .setStyle(
+                                TextInputStyle.Paragraph
+                            )
 
-                                value:
-                                    `**${participants.length}**`,
+                            .setRequired(
+                                true
+                            )
 
-                                inline: true
-                            })
+                            .setMinLength(
+                                1
+                            )
 
-                            .setFooter({
+                            .setMaxLength(
+                                500
+                            );
 
-                                text:
-                                    "Only you can see this list."
-                            });
+                    modal.addComponents(
 
-                    return interaction.reply({
+                        new ActionRowBuilder()
+                            .addComponents(
+                                reasonInput
+                            )
+                    );
 
-                        embeds: [
-                            embed
-                        ],
-
-                        ephemeral: true
-                    });
+                    return interaction.showModal(
+                        modal
+                    );
                 }
 
-                // =============================================
+                // =================================================
                 // JOIN
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -997,9 +1546,32 @@ client.on(
                         });
                     }
 
-                    // =========================================
+                    // =============================================
+                    // KICK CHECK
+                    // =============================================
+
+                    const kicked =
+                        db.getKickedParticipant(
+                            giveawayId,
+                            interaction.user.id
+                        );
+
+                    if (kicked) {
+
+                        return interaction.reply({
+
+                            content:
+                                `❌ **You have been kicked from this giveaway.**\n\n` +
+                                `**Reason:** ${kicked.reason}\n\n` +
+                                `You can still join other giveaways.`,
+
+                            ephemeral: true
+                        });
+                    }
+
+                    // =============================================
                     // HOST CANNOT JOIN
-                    // =========================================
+                    // =============================================
 
                     if (
                         giveaway.hostId ===
@@ -1015,9 +1587,9 @@ client.on(
                         });
                     }
 
-                    // =========================================
+                    // =============================================
                     // SPECIAL ROLE
-                    // =========================================
+                    // =============================================
 
                     if (
                         giveaway.specialRoleId &&
@@ -1036,37 +1608,13 @@ client.on(
                         });
                     }
 
-                    const participants =
-                        db.getParticipants(
-                            giveawayId
-                        );
-
                     const alreadyJoined =
-                        participants.some(
-                            participant =>
-                                participant.discordId ===
-                                interaction.user.id
+                        db.isParticipant(
+                            giveawayId,
+                            interaction.user.id
                         );
-
-                    // =========================================
-                    // IF ALREADY JOINED
-                    // =========================================
 
                     if (alreadyJoined) {
-
-                        if (
-                            typeof db.removeParticipant !==
-                            "function"
-                        ) {
-
-                            return interaction.reply({
-
-                                content:
-                                    "❌ The Leave Giveaway feature is not enabled in the database yet.",
-
-                                ephemeral: true
-                            });
-                        }
 
                         db.removeParticipant(
                             giveawayId,
@@ -1085,10 +1633,6 @@ client.on(
                             ephemeral: true
                         });
                     }
-
-                    // =========================================
-                    // JOIN MODAL
-                    // =========================================
 
                     const modal =
                         new ModalBuilder()
@@ -1138,7 +1682,6 @@ client.on(
                             .addComponents(
                                 input
                             )
-
                     );
 
                     return interaction.showModal(
@@ -1146,9 +1689,9 @@ client.on(
                     );
                 }
 
-                // =============================================
-                // CANCEL GIVEAWAY
-                // =============================================
+                // =================================================
+                // CANCEL
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -1260,9 +1803,9 @@ client.on(
                     });
                 }
 
-                // =============================================
+                // =================================================
                 // CONFIRM CANCEL
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -1330,9 +1873,9 @@ client.on(
                     });
                 }
 
-                // =============================================
+                // =================================================
                 // DECLINE CANCEL
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -1349,9 +1892,9 @@ client.on(
                     });
                 }
 
-                // =============================================
-                // END GIVEAWAY
-                // =============================================
+                // =================================================
+                // END
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -1395,9 +1938,9 @@ client.on(
                     });
                 }
 
-                // =============================================
+                // =================================================
                 // REROLL
-                // =============================================
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -1440,6 +1983,231 @@ client.on(
             if (
                 interaction.isModalSubmit()
             ) {
+
+                // =================================================
+                // KICK REASON
+                // =================================================
+
+                if (
+                    interaction.customId.startsWith(
+                        "kickreason_"
+                    )
+                ) {
+
+                    const parts =
+                        interaction.customId.split(
+                            "_"
+                        );
+
+                    const giveawayId =
+                        parts[1];
+
+                    const targetDiscordId =
+                        parts[2];
+
+                    const giveaway =
+                        db.getGiveaway(
+                            giveawayId
+                        );
+
+                    if (!giveaway) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ Giveaway not found.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    // =============================================
+                    // HOST ONLY
+                    // =============================================
+
+                    if (
+                        giveaway.hostId !==
+                        interaction.user.id
+                    ) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ Only the giveaway host can kick participants.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    if (giveaway.ended) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ This giveaway has already ended.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    const participant =
+                        db.getParticipant(
+                            giveawayId,
+                            targetDiscordId
+                        );
+
+                    if (!participant) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ This player is no longer participating in the giveaway.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    const reason =
+                        interaction.fields
+                            .getTextInputValue(
+                                "kick_reason"
+                            )
+                            .trim();
+
+                    if (!reason) {
+
+                        return interaction.reply({
+
+                            content:
+                                "❌ You must provide a reason for kicking this participant.",
+
+                            ephemeral: true
+                        });
+                    }
+
+                    // =============================================
+                    // REMOVE FROM PARTICIPANTS
+                    // =============================================
+
+                    db.removeParticipant(
+                        giveawayId,
+                        targetDiscordId
+                    );
+
+                    // =============================================
+                    // SAVE KICK
+                    // =============================================
+
+                    db.removeKickedParticipant(
+                        giveawayId,
+                        targetDiscordId
+                    );
+
+                    db.addKickedParticipant({
+
+                        giveawayId,
+
+                        discordId:
+                            participant.discordId,
+
+                        discordTag:
+                            participant.discordTag,
+
+                        robloxUsername:
+                            participant.robloxUsername,
+
+                        reason,
+
+                        kickedBy:
+                            interaction.user.id
+                    });
+
+                    // =============================================
+                    // UPDATE GIVEAWAY
+                    // =============================================
+
+                    await updateGiveawayMessage(
+                        giveawayId
+                    );
+
+                    // =============================================
+                    // TRY DM
+                    // =============================================
+
+                    let dmSent = false;
+
+                    try {
+
+                        const user =
+                            await client.users.fetch(
+                                targetDiscordId
+                            );
+
+                        await user.send({
+
+                            embeds: [
+
+                                new EmbedBuilder()
+
+                                    .setTitle(
+                                        "👢 You Were Kicked"
+                                    )
+
+                                    .setDescription(
+
+                                        `You have been kicked from the giveaway.\n\n` +
+
+                                        `💰 **Prize:** ${giveaway.robux.toLocaleString()} Robux\n\n` +
+
+                                        `👑 **Host:** <@${giveaway.hostId}>\n\n` +
+
+                                        `📝 **Reason:**\n` +
+                                        `${reason}\n\n` +
+
+                                        `You can still participate in other giveaways.`
+
+                                    )
+
+                                    .setFooter({
+
+                                        text:
+                                            "Roblox Giveaway"
+                                    })
+
+                                    .setTimestamp()
+                            ]
+                        });
+
+                        dmSent = true;
+
+                    } catch {
+
+                        dmSent = false;
+                    }
+
+                    return interaction.reply({
+
+                        content:
+
+                            `👢 **Participant kicked successfully.**\n\n` +
+
+                            `👤 Player: <@${targetDiscordId}>\n` +
+
+                            `📝 Reason: **${reason}**\n\n` +
+
+                            (
+                                dmSent
+                                    ? "📩 The player was notified by DM."
+                                    : "⚠️ I could not send the player a DM."
+                            ),
+
+                        ephemeral: true
+                    });
+                }
+
+                // =================================================
+                // USERNAME
+                // =================================================
 
                 if (
                     interaction.customId.startsWith(
@@ -1490,9 +2258,32 @@ client.on(
                         });
                     }
 
-                    // =========================================
-                    // HOST CANNOT JOIN
-                    // =========================================
+                    // =============================================
+                    // KICK CHECK AGAIN
+                    // =============================================
+
+                    const kicked =
+                        db.getKickedParticipant(
+                            giveawayId,
+                            interaction.user.id
+                        );
+
+                    if (kicked) {
+
+                        return interaction.reply({
+
+                            content:
+                                `❌ **You have been kicked from this giveaway.**\n\n` +
+                                `**Reason:** ${kicked.reason}\n\n` +
+                                `You can still join other giveaways.`,
+
+                            ephemeral: true
+                        });
+                    }
+
+                    // =============================================
+                    // HOST
+                    // =============================================
 
                     if (
                         giveaway.hostId ===
@@ -1508,9 +2299,9 @@ client.on(
                         });
                     }
 
-                    // =========================================
-                    // SPECIAL ROLE CHECK
-                    // =========================================
+                    // =============================================
+                    // SPECIAL ROLE
+                    // =============================================
 
                     if (
                         giveaway.specialRoleId &&
@@ -1547,16 +2338,10 @@ client.on(
                         });
                     }
 
-                    const participants =
-                        db.getParticipants(
-                            giveawayId
-                        );
-
                     if (
-                        participants.some(
-                            participant =>
-                                participant.discordId ===
-                                interaction.user.id
+                        db.isParticipant(
+                            giveawayId,
+                            interaction.user.id
                         )
                     ) {
 
@@ -1721,21 +2506,6 @@ async function createGiveawayFromCommand(
             });
         }
 
-        // =================================================
-        // IMPORTANT:
-        // This role is COMPLETELY INDEPENDENT from
-        // /setup-special-giveaway staff_role.
-        //
-        // We intentionally DO NOT check:
-        // specialRole.managed
-        //
-        // The staff role only controls who can create
-        // /specialgiveaway.
-        //
-        // special_role controls who can JOIN that
-        // particular giveaway.
-        // =================================================
-
         if (
             specialRole.id ===
             interaction.guild.id
@@ -1896,7 +2666,7 @@ async function createGiveawayFromCommand(
 }
 
 // =====================================================
-// UPDATE GIVEAWAY MESSAGE
+// UPDATE GIVEAWAY
 // =====================================================
 
 async function updateGiveawayMessage(
@@ -1970,7 +2740,7 @@ async function updateGiveawayMessage(
 }
 
 // =====================================================
-// CANCEL GIVEAWAY
+// CANCEL
 // =====================================================
 
 async function cancelGiveaway(
@@ -1982,11 +2752,10 @@ async function cancelGiveaway(
             giveawayId
         );
 
-    if (!giveaway) {
-        return;
-    }
-
-    if (giveaway.ended) {
+    if (
+        !giveaway ||
+        giveaway.ended
+    ) {
         return;
     }
 
@@ -2041,37 +2810,16 @@ async function cancelGiveaway(
 
                 .setTimestamp();
 
-        try {
+        await message.edit({
 
-            await message.edit({
+            content: "",
 
-                content: "",
+            embeds: [
+                embed
+            ],
 
-                embeds: [
-                    embed
-                ],
-
-                components: []
-            });
-
-        } catch (error) {
-
-            if (
-                error?.code === 10008
-            ) {
-
-                console.log(
-                    "⚠️ Giveaway message was already deleted."
-                );
-
-            } else {
-
-                console.error(
-                    "❌ Could not edit cancelled giveaway:",
-                    error
-                );
-            }
-        }
+            components: []
+        });
 
     } catch (error) {
 
@@ -2080,7 +2828,7 @@ async function cancelGiveaway(
         ) {
 
             console.log(
-                "⚠️ Giveaway message no longer exists."
+                "⚠️ Giveaway message was already deleted."
             );
 
         } else {
@@ -2110,11 +2858,10 @@ async function endGiveaway(
             giveawayId
         );
 
-    if (!giveaway) {
-        return;
-    }
-
-    if (giveaway.ended) {
+    if (
+        !giveaway ||
+        giveaway.ended
+    ) {
         return;
     }
 
@@ -2128,10 +2875,6 @@ async function endGiveaway(
     );
 
     let message = null;
-
-    // =================================================
-    // FETCH MESSAGE SAFELY
-    // =================================================
 
     try {
 
@@ -2240,10 +2983,6 @@ async function endGiveaway(
             }
         }
 
-        console.log(
-            `😔 Giveaway ${giveawayId} ended with no participants.`
-        );
-
         return;
     }
 
@@ -2303,17 +3042,13 @@ async function endGiveaway(
     }
 
     // =================================================
-    // CREATE TICKETS
+    // TICKETS
     // =================================================
 
     await createTicketsForWinners(
         giveaway,
         winners
     );
-
-    // =================================================
-    // WINNER MESSAGE
-    // =================================================
 
     const winnerText =
         winners
@@ -2370,16 +3105,6 @@ async function endGiveaway(
                 ButtonStyle.Primary
             );
 
-    const row =
-        new ActionRowBuilder()
-            .addComponents(
-                rerollButton
-            );
-
-    // =================================================
-    // UPDATE MESSAGE SAFELY
-    // =================================================
-
     if (message) {
 
         try {
@@ -2399,7 +3124,12 @@ async function endGiveaway(
                 ],
 
                 components: [
-                    row
+
+                    new ActionRowBuilder()
+                        .addComponents(
+                            rerollButton
+                        )
+
                 ]
             });
 
@@ -2763,7 +3493,7 @@ function scheduleGiveaway(
 }
 
 // =====================================================
-// RESTORE GIVEAWAYS
+// RESTORE
 // =====================================================
 
 async function restoreGiveaways() {
