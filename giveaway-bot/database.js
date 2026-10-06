@@ -142,6 +142,106 @@ db.exec(`
         createdAt INTEGER
     );
 
+    -- =================================================
+    -- ROBLOX VERIFICATION
+    -- =================================================
+
+    CREATE TABLE IF NOT EXISTS verified_users (
+
+        discordId TEXT PRIMARY KEY,
+
+        robloxUserId TEXT NOT NULL UNIQUE,
+
+        robloxUsername TEXT NOT NULL,
+
+        robloxDisplayName TEXT,
+
+        robloxAvatarUrl TEXT,
+
+        verifiedAt INTEGER NOT NULL,
+
+        verificationCode TEXT,
+
+        verificationCodeExpiresAt INTEGER,
+
+        lastVerificationAttempt INTEGER DEFAULT 0,
+
+        verificationAttempts INTEGER DEFAULT 0
+    );
+
+    -- =================================================
+    -- VERIFICATION ATTEMPTS / SECURITY LOG
+    -- =================================================
+
+    CREATE TABLE IF NOT EXISTS verification_logs (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        discordId TEXT NOT NULL,
+
+        robloxUserId TEXT,
+
+        robloxUsername TEXT,
+
+        action TEXT NOT NULL,
+
+        success INTEGER NOT NULL DEFAULT 0,
+
+        reason TEXT,
+
+        createdAt INTEGER NOT NULL
+    );
+
+    -- =================================================
+    -- USER STATS
+    -- =================================================
+
+    CREATE TABLE IF NOT EXISTS user_stats (
+
+        discordId TEXT PRIMARY KEY,
+
+        giveawaysWon INTEGER NOT NULL DEFAULT 0,
+
+        totalPrize INTEGER NOT NULL DEFAULT 0,
+
+        totalPaid INTEGER NOT NULL DEFAULT 0,
+
+        pendingAmount INTEGER NOT NULL DEFAULT 0,
+
+        updatedAt INTEGER NOT NULL
+    );
+
+    -- =================================================
+    -- PRIZE LEDGER
+    -- =================================================
+
+    CREATE TABLE IF NOT EXISTS prize_ledger (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        giveawayId TEXT NOT NULL,
+
+        discordId TEXT NOT NULL,
+
+        robloxUserId TEXT,
+
+        robloxUsername TEXT,
+
+        amount INTEGER NOT NULL,
+
+        status TEXT NOT NULL DEFAULT 'pending',
+
+        ticketId TEXT,
+
+        paidBy TEXT,
+
+        paidAt INTEGER,
+
+        createdAt INTEGER NOT NULL,
+
+        UNIQUE(giveawayId, discordId)
+    );
+
 `);
 
 // =====================================================
@@ -1174,6 +1274,1179 @@ function getWinner(
 }
 
 // =====================================================
+// ROBLOX VERIFICATION
+// =====================================================
+
+function getVerifiedUser(
+    discordId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM verified_users
+
+        WHERE discordId = ?
+
+        LIMIT 1
+
+    `).get(discordId);
+}
+
+function getVerifiedUserByRobloxId(
+    robloxUserId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM verified_users
+
+        WHERE robloxUserId = ?
+
+        LIMIT 1
+
+    `).get(
+        String(robloxUserId)
+    );
+}
+
+function isVerified(
+    discordId
+) {
+
+    return !!getVerifiedUser(
+        discordId
+    );
+}
+
+function saveVerification(
+    data
+) {
+
+    const existing =
+        getVerifiedUser(
+            data.discordId
+        );
+
+    const alreadyLinked =
+        getVerifiedUserByRobloxId(
+            data.robloxUserId
+        );
+
+    // Same Roblox account is already linked
+    // to another Discord account.
+    if (
+        alreadyLinked &&
+        alreadyLinked.discordId !==
+            data.discordId
+    ) {
+
+        throw new Error(
+            "ROBLOX_ACCOUNT_ALREADY_LINKED"
+        );
+    }
+
+    // A verified Discord account cannot
+    // silently change its Roblox account.
+    if (
+        existing &&
+        String(existing.robloxUserId) !==
+            String(data.robloxUserId)
+    ) {
+
+        throw new Error(
+            "DISCORD_ACCOUNT_ALREADY_VERIFIED"
+        );
+    }
+
+    db.prepare(`
+
+        INSERT INTO verified_users (
+
+            discordId,
+            robloxUserId,
+            robloxUsername,
+            robloxDisplayName,
+            robloxAvatarUrl,
+            verifiedAt,
+            verificationCode,
+            verificationCodeExpiresAt,
+            lastVerificationAttempt,
+            verificationAttempts
+
+        )
+
+        VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
+
+        ON CONFLICT(discordId)
+        DO UPDATE SET
+
+            robloxUserId =
+                excluded.robloxUserId,
+
+            robloxUsername =
+                excluded.robloxUsername,
+
+            robloxDisplayName =
+                excluded.robloxDisplayName,
+
+            robloxAvatarUrl =
+                excluded.robloxAvatarUrl,
+
+            verifiedAt =
+                excluded.verifiedAt
+
+    `).run(
+
+        data.discordId,
+
+        String(data.robloxUserId),
+
+        data.robloxUsername,
+
+        data.robloxDisplayName ||
+            null,
+
+        data.robloxAvatarUrl ||
+            null,
+
+        data.verifiedAt ||
+            Date.now(),
+
+        data.lastVerificationAttempt ||
+            0,
+
+        data.verificationAttempts ||
+            0
+    );
+
+    return getVerifiedUser(
+        data.discordId
+    );
+}
+
+function createVerificationCode(
+    discordId,
+    code,
+    expiresAt
+) {
+
+    const now =
+        Date.now();
+
+    const existing =
+        getVerifiedUser(
+            discordId
+        );
+
+    if (existing) {
+
+        return false;
+    }
+
+    db.prepare(`
+
+        INSERT INTO verified_users (
+
+            discordId,
+            robloxUserId,
+            robloxUsername,
+            robloxDisplayName,
+            robloxAvatarUrl,
+            verifiedAt,
+            verificationCode,
+            verificationCodeExpiresAt,
+            lastVerificationAttempt,
+            verificationAttempts
+
+        )
+
+        VALUES (
+            ?,
+            ?,
+            ?,
+            NULL,
+            NULL,
+            0,
+            ?,
+            ?,
+            ?,
+            0
+        )
+
+        ON CONFLICT(discordId)
+        DO UPDATE SET
+
+            verificationCode =
+                excluded.verificationCode,
+
+            verificationCodeExpiresAt =
+                excluded.verificationCodeExpiresAt
+
+    `).run(
+
+        discordId,
+
+        `pending_${discordId}`,
+
+        `pending_${discordId}`,
+
+        code,
+
+        expiresAt,
+
+        now
+    );
+
+    return true;
+}
+
+function getPendingVerification(
+    discordId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM verified_users
+
+        WHERE discordId = ?
+
+        AND verificationCode IS NOT NULL
+
+        AND verificationCodeExpiresAt > ?
+
+        AND verifiedAt = 0
+
+        LIMIT 1
+
+    `).get(
+        discordId,
+        Date.now()
+    );
+}
+
+function clearVerificationCode(
+    discordId
+) {
+
+    db.prepare(`
+
+        UPDATE verified_users
+
+        SET
+            verificationCode = NULL,
+            verificationCodeExpiresAt = NULL
+
+        WHERE discordId = ?
+
+    `).run(discordId);
+}
+
+function recordVerificationAttempt(
+    discordId,
+    success,
+    reason,
+    robloxUserId,
+    robloxUsername
+) {
+
+    const now =
+        Date.now();
+
+    const existing =
+        getVerifiedUser(
+            discordId
+        );
+
+    if (existing) {
+
+        db.prepare(`
+
+            UPDATE verified_users
+
+            SET
+                lastVerificationAttempt = ?,
+                verificationAttempts =
+                    COALESCE(
+                        verificationAttempts,
+                        0
+                    ) + 1
+
+            WHERE discordId = ?
+
+        `).run(
+            now,
+            discordId
+        );
+
+    } else {
+
+        db.prepare(`
+
+            INSERT OR IGNORE INTO verified_users (
+
+                discordId,
+                robloxUserId,
+                robloxUsername,
+                verifiedAt,
+                lastVerificationAttempt,
+                verificationAttempts
+
+            )
+
+            VALUES (
+                ?,
+                ?,
+                ?,
+                0,
+                ?,
+                1
+            )
+
+        `).run(
+
+            discordId,
+
+            robloxUserId ||
+                `pending_${discordId}`,
+
+            robloxUsername ||
+                `pending_${discordId}`,
+
+            now
+        );
+    }
+
+    db.prepare(`
+
+        INSERT INTO verification_logs (
+
+            discordId,
+            robloxUserId,
+            robloxUsername,
+            action,
+            success,
+            reason,
+            createdAt
+
+        )
+
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+
+    `).run(
+
+        discordId,
+
+        robloxUserId ||
+            null,
+
+        robloxUsername ||
+            null,
+
+        "verification_attempt",
+
+        success
+            ? 1
+            : 0,
+
+        reason ||
+            null,
+
+        now
+    );
+}
+
+function getVerificationAttempts(
+    discordId
+) {
+
+    const row =
+        db.prepare(`
+
+            SELECT
+                verificationAttempts,
+                lastVerificationAttempt
+
+            FROM verified_users
+
+            WHERE discordId = ?
+
+            LIMIT 1
+
+        `).get(discordId);
+
+    return row || {
+
+        verificationAttempts: 0,
+
+        lastVerificationAttempt: 0
+    };
+}
+
+function deletePendingVerification(
+    discordId
+) {
+
+    db.prepare(`
+
+        DELETE FROM verified_users
+
+        WHERE discordId = ?
+
+        AND verifiedAt = 0
+
+    `).run(discordId);
+}
+
+// =====================================================
+// USER STATS
+// =====================================================
+
+function ensureUserStats(
+    discordId
+) {
+
+    db.prepare(`
+
+        INSERT OR IGNORE INTO user_stats (
+
+            discordId,
+            giveawaysWon,
+            totalPrize,
+            totalPaid,
+            pendingAmount,
+            updatedAt
+
+        )
+
+        VALUES (?, 0, 0, 0, 0, ?)
+
+    `).run(
+        discordId,
+        Date.now()
+    );
+}
+
+function getUserStats(
+    discordId
+) {
+
+    ensureUserStats(
+        discordId
+    );
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM user_stats
+
+        WHERE discordId = ?
+
+        LIMIT 1
+
+    `).get(discordId);
+}
+
+function updateUserStats(
+    discordId,
+    values
+) {
+
+    ensureUserStats(
+        discordId
+    );
+
+    const current =
+        getUserStats(
+            discordId
+        );
+
+    const giveawaysWon =
+        values.giveawaysWon !== undefined
+            ? values.giveawaysWon
+            : current.giveawaysWon;
+
+    const totalPrize =
+        values.totalPrize !== undefined
+            ? values.totalPrize
+            : current.totalPrize;
+
+    const totalPaid =
+        values.totalPaid !== undefined
+            ? values.totalPaid
+            : current.totalPaid;
+
+    const pendingAmount =
+        values.pendingAmount !== undefined
+            ? values.pendingAmount
+            : current.pendingAmount;
+
+    db.prepare(`
+
+        UPDATE user_stats
+
+        SET
+
+            giveawaysWon = ?,
+
+            totalPrize = ?,
+
+            totalPaid = ?,
+
+            pendingAmount = ?,
+
+            updatedAt = ?
+
+        WHERE discordId = ?
+
+    `).run(
+
+        Math.max(
+            0,
+            Number(giveawaysWon) || 0
+        ),
+
+        Math.max(
+            0,
+            Number(totalPrize) || 0
+        ),
+
+        Math.max(
+            0,
+            Number(totalPaid) || 0
+        ),
+
+        Math.max(
+            0,
+            Number(pendingAmount) || 0
+        ),
+
+        Date.now(),
+
+        discordId
+    );
+
+    return getUserStats(
+        discordId
+    );
+}
+
+// =====================================================
+// PRIZE LEDGER
+// =====================================================
+
+function createPrize(
+    data
+) {
+
+    const amount =
+        Number(data.amount);
+
+    if (
+        !Number.isInteger(amount) ||
+        amount <= 0
+    ) {
+
+        throw new Error(
+            "INVALID_PRIZE_AMOUNT"
+        );
+    }
+
+    const existing =
+        getPrize(
+            data.giveawayId,
+            data.discordId
+        );
+
+    if (existing) {
+
+        return existing;
+    }
+
+    const now =
+        Date.now();
+
+    db.prepare(`
+
+        INSERT INTO prize_ledger (
+
+            giveawayId,
+            discordId,
+            robloxUserId,
+            robloxUsername,
+            amount,
+            status,
+            ticketId,
+            paidBy,
+            paidAt,
+            createdAt
+
+        )
+
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, NULL, NULL, ?)
+
+    `).run(
+
+        data.giveawayId,
+
+        data.discordId,
+
+        data.robloxUserId ||
+            null,
+
+        data.robloxUsername ||
+            null,
+
+        amount,
+
+        data.ticketId ||
+            null,
+
+        now
+    );
+
+    ensureUserStats(
+        data.discordId
+    );
+
+    db.prepare(`
+
+        UPDATE user_stats
+
+        SET
+
+            giveawaysWon =
+                giveawaysWon + 1,
+
+            totalPrize =
+                totalPrize + ?,
+
+            pendingAmount =
+                pendingAmount + ?,
+
+            updatedAt = ?
+
+        WHERE discordId = ?
+
+    `).run(
+
+        amount,
+
+        amount,
+
+        now,
+
+        data.discordId
+    );
+
+    return getPrize(
+        data.giveawayId,
+        data.discordId
+    );
+}
+
+function getPrize(
+    giveawayId,
+    discordId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM prize_ledger
+
+        WHERE giveawayId = ?
+
+        AND discordId = ?
+
+        LIMIT 1
+
+    `).get(
+        giveawayId,
+        discordId
+    );
+}
+
+function getPrizeById(
+    id
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM prize_ledger
+
+        WHERE id = ?
+
+        LIMIT 1
+
+    `).get(id);
+}
+
+function getPendingPrizes(
+    discordId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM prize_ledger
+
+        WHERE discordId = ?
+
+        AND status = 'pending'
+
+        ORDER BY createdAt DESC
+
+    `).all(discordId);
+}
+
+function getUserPrizes(
+    discordId
+) {
+
+    return db.prepare(`
+
+        SELECT *
+
+        FROM prize_ledger
+
+        WHERE discordId = ?
+
+        ORDER BY createdAt DESC
+
+    `).all(discordId);
+}
+
+function markPrizePaid(
+    giveawayId,
+    discordId,
+    paidBy,
+    ticketId
+) {
+
+    const prize =
+        getPrize(
+            giveawayId,
+            discordId
+        );
+
+    if (!prize) {
+
+        throw new Error(
+            "PRIZE_NOT_FOUND"
+        );
+    }
+
+    if (
+        prize.status ===
+        "paid"
+    ) {
+
+        return prize;
+    }
+
+    if (
+        prize.status !==
+        "pending"
+    ) {
+
+        throw new Error(
+            "PRIZE_NOT_PENDING"
+        );
+    }
+
+    const now =
+        Date.now();
+
+    const transaction =
+        db.transaction(() => {
+
+            db.prepare(`
+
+                UPDATE prize_ledger
+
+                SET
+
+                    status = 'paid',
+
+                    paidBy = ?,
+
+                    paidAt = ?,
+
+                    ticketId =
+                        COALESCE(?, ticketId)
+
+                WHERE giveawayId = ?
+
+                AND discordId = ?
+
+            `).run(
+
+                paidBy ||
+                    null,
+
+                now,
+
+                ticketId ||
+                    null,
+
+                giveawayId,
+
+                discordId
+            );
+
+            ensureUserStats(
+                discordId
+            );
+
+            db.prepare(`
+
+                UPDATE user_stats
+
+                SET
+
+                    totalPaid =
+                        totalPaid + ?,
+
+                    pendingAmount =
+                        MAX(
+                            0,
+                            pendingAmount - ?
+                        ),
+
+                    updatedAt = ?
+
+                WHERE discordId = ?
+
+            `).run(
+
+                prize.amount,
+
+                prize.amount,
+
+                now,
+
+                discordId
+            );
+        });
+
+    transaction();
+
+    return getPrize(
+        giveawayId,
+        discordId
+    );
+}
+
+function markPrizeUnpaid(
+    giveawayId,
+    discordId
+) {
+
+    const prize =
+        getPrize(
+            giveawayId,
+            discordId
+        );
+
+    if (!prize) {
+
+        throw new Error(
+            "PRIZE_NOT_FOUND"
+        );
+    }
+
+    if (
+        prize.status ===
+        "pending"
+    ) {
+
+        return prize;
+    }
+
+    if (
+        prize.status !==
+        "paid"
+    ) {
+
+        throw new Error(
+            "INVALID_PRIZE_STATUS"
+        );
+    }
+
+    const now =
+        Date.now();
+
+    const transaction =
+        db.transaction(() => {
+
+            db.prepare(`
+
+                UPDATE prize_ledger
+
+                SET
+
+                    status = 'pending',
+
+                    paidBy = NULL,
+
+                    paidAt = NULL
+
+                WHERE giveawayId = ?
+
+                AND discordId = ?
+
+            `).run(
+
+                giveawayId,
+
+                discordId
+            );
+
+            ensureUserStats(
+                discordId
+            );
+
+            db.prepare(`
+
+                UPDATE user_stats
+
+                SET
+
+                    totalPaid =
+                        MAX(
+                            0,
+                            totalPaid - ?
+                        ),
+
+                    pendingAmount =
+                        pendingAmount + ?,
+
+                    updatedAt = ?
+
+                WHERE discordId = ?
+
+            `).run(
+
+                prize.amount,
+
+                prize.amount,
+
+                now,
+
+                discordId
+            );
+        });
+
+    transaction();
+
+    return getPrize(
+        giveawayId,
+        discordId
+    );
+}
+
+// =====================================================
+// PRIZE HELPERS
+// =====================================================
+
+function getPendingAmount(
+    discordId
+) {
+
+    const stats =
+        getUserStats(
+            discordId
+        );
+
+    return stats
+        ? stats.pendingAmount
+        : 0;
+}
+
+function getTotalPrize(
+    discordId
+) {
+
+    const stats =
+        getUserStats(
+            discordId
+        );
+
+    return stats
+        ? stats.totalPrize
+        : 0;
+}
+
+function getTotalPaid(
+    discordId
+) {
+
+    const stats =
+        getUserStats(
+            discordId
+        );
+
+    return stats
+        ? stats.totalPaid
+        : 0;
+}
+
+function getGiveawaysWon(
+    discordId
+) {
+
+    const stats =
+        getUserStats(
+            discordId
+        );
+
+    return stats
+        ? stats.giveawaysWon
+        : 0;
+}
+
+// =====================================================
+// GIVEAWAY WINNER + PRIZE
+// =====================================================
+
+function createWinnerAndPrize(
+    data
+) {
+
+    const transaction =
+        db.transaction(() => {
+
+            addWinner({
+                giveawayId:
+                    data.giveawayId,
+
+                discordId:
+                    data.discordId,
+
+                discordTag:
+                    data.discordTag,
+
+                robloxUsername:
+                    data.robloxUsername
+            });
+
+            createPrize({
+                giveawayId:
+                    data.giveawayId,
+
+                discordId:
+                    data.discordId,
+
+                robloxUserId:
+                    data.robloxUserId,
+
+                robloxUsername:
+                    data.robloxUsername,
+
+                amount:
+                    data.amount,
+
+                ticketId:
+                    data.ticketId
+            });
+        });
+
+    transaction();
+
+    return {
+        winner:
+            getWinner(
+                data.giveawayId,
+                data.discordId
+            ),
+
+        prize:
+            getPrize(
+                data.giveawayId,
+                data.discordId
+            )
+    };
+}
+
+// =====================================================
+// ROBLOX ACCOUNT LOOKUP
+// =====================================================
+
+function isRobloxAccountLinked(
+    robloxUserId,
+    exceptDiscordId = null
+) {
+
+    let query = `
+
+        SELECT *
+
+        FROM verified_users
+
+        WHERE robloxUserId = ?
+
+    `;
+
+    const params = [
+        String(robloxUserId)
+    ];
+
+    if (exceptDiscordId) {
+
+        query += `
+            AND discordId != ?
+        `;
+
+        params.push(
+            exceptDiscordId
+        );
+    }
+
+    query += `
+        LIMIT 1
+    `;
+
+    return db
+        .prepare(query)
+        .get(...params);
+}
+
+// =====================================================
+// CLEANUP
+// =====================================================
+
+function cleanupExpiredVerificationCodes() {
+
+    const result =
+        db.prepare(`
+
+            DELETE FROM verified_users
+
+            WHERE verifiedAt = 0
+
+            AND verificationCodeExpiresAt IS NOT NULL
+
+            AND verificationCodeExpiresAt <= ?
+
+        `).run(
+            Date.now()
+        );
+
+    return result.changes;
+}
+
+// =====================================================
 // EXPORTS
 // =====================================================
 
@@ -1209,5 +2482,40 @@ module.exports = {
     // Winners
     addWinner,
     getWinners,
-    getWinner
+    getWinner,
+
+    // Verification
+    getVerifiedUser,
+    getVerifiedUserByRobloxId,
+    isVerified,
+    saveVerification,
+    createVerificationCode,
+    getPendingVerification,
+    clearVerificationCode,
+    recordVerificationAttempt,
+    getVerificationAttempts,
+    deletePendingVerification,
+    isRobloxAccountLinked,
+    cleanupExpiredVerificationCodes,
+
+    // Stats
+    ensureUserStats,
+    getUserStats,
+    updateUserStats,
+    getGiveawaysWon,
+    getTotalPrize,
+    getTotalPaid,
+    getPendingAmount,
+
+    // Prize ledger
+    createPrize,
+    getPrize,
+    getPrizeById,
+    getPendingPrizes,
+    getUserPrizes,
+    markPrizePaid,
+    markPrizeUnpaid,
+
+    // Winner + prize
+    createWinnerAndPrize
 };
