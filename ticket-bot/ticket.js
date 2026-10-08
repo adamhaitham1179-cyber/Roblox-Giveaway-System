@@ -1,3 +1,4 @@
+
 require("dotenv").config();
 
 const {
@@ -29,6 +30,8 @@ const {
     closeTicket
 } = require("./database");
 
+const config = require("./config.json");
+
 // ======================================================
 // CONFIG
 // ======================================================
@@ -37,56 +40,52 @@ const TOKEN = process.env.TOKEN;
 const API_SECRET = process.env.API_SECRET;
 const API_PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 
-// Giveaway Bot API
 const GIVEAWAY_API_URL = process.env.GIVEAWAY_API_URL;
 const GIVEAWAY_API_SECRET = process.env.GIVEAWAY_API_SECRET;
 
-const config = require("./config.json");
+if (!TOKEN) {
+    console.error("❌ Missing TOKEN environment variable.");
+    process.exit(1);
+}
+
+if (!config.clientId) {
+    console.error("❌ Missing clientId in config.json.");
+    process.exit(1);
+}
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds
-    ]
+    intents: [GatewayIntentBits.Guilds]
 });
 
 // ======================================================
-// DISCORD COMMANDS
+// SLASH COMMANDS
 // ======================================================
 
 const commands = [
     {
         name: "setup-tickets",
-        description:
-            "Set the category and staff role for giveaway winner tickets.",
+        description: "Configure giveaway winner tickets.",
         default_member_permissions:
             PermissionsBitField.Flags.ManageGuild.toString(),
-
         options: [
             {
                 name: "category",
-                description:
-                    "The category where giveaway winner tickets will be created.",
+                description: "Ticket category.",
                 type: 7,
                 required: true,
-                channel_types: [
-                    ChannelType.GuildCategory
-                ]
+                channel_types: [ChannelType.GuildCategory]
             },
-
             {
                 name: "staff_role",
-                description:
-                    "The role allowed to view and manage giveaway tickets.",
+                description: "Role allowed to manage tickets.",
                 type: 8,
                 required: true
             }
         ]
     },
-
     {
         name: "ticket-manage",
-        description:
-            "Open the staff controls for the current giveaway ticket."
+        description: "Open staff controls for this giveaway ticket."
     }
 ];
 
@@ -95,55 +94,29 @@ const commands = [
 // ======================================================
 
 async function registerCommands() {
-    try {
-        console.log("Registering Ticket Bot commands...");
+    const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-        const rest = new REST({
-            version: "10"
-        }).setToken(TOKEN);
+    await rest.put(
+        Routes.applicationCommands(config.clientId),
+        { body: commands }
+    );
 
-        await rest.put(
-            Routes.applicationCommands(config.clientId),
-            {
-                body: commands
-            }
-        );
+    console.log("✅ Global Ticket Bot commands registered.");
 
-        console.log("✅ Global commands registered.");
+    for (const [guildId, guild] of client.guilds.cache) {
+        try {
+            await rest.put(
+                Routes.applicationGuildCommands(config.clientId, guildId),
+                { body: commands }
+            );
 
-        for (const [guildId, guild] of client.guilds.cache) {
-            try {
-                await rest.put(
-                    Routes.applicationGuildCommands(
-                        config.clientId,
-                        guildId
-                    ),
-                    {
-                        body: commands
-                    }
-                );
-
-                console.log(
-                    `✅ Commands registered in: ${guild.name}`
-                );
-
-            } catch (error) {
-                console.error(
-                    `❌ Failed to register commands in ${guild.name}:`,
-                    error
-                );
-            }
+            console.log(`✅ Commands registered in ${guild.name}`);
+        } catch (error) {
+            console.error(
+                `❌ Command registration failed in ${guild.name}:`,
+                error.message
+            );
         }
-
-        console.log(
-            "✅ Available commands: /setup-tickets, /ticket-manage"
-        );
-
-    } catch (error) {
-        console.error(
-            "❌ Failed to register commands:",
-            error
-        );
     }
 }
 
@@ -152,41 +125,24 @@ async function registerCommands() {
 // ======================================================
 
 async function isStaff(interaction) {
-    if (!interaction.guild) {
-        return false;
-    }
-
-    const member = interaction.member;
-
-    if (!member) {
+    if (!interaction.guild || !interaction.member) {
         return false;
     }
 
     if (
-        member.permissions &&
-        member.permissions.has(
+        interaction.memberPermissions?.has(
             PermissionsBitField.Flags.ManageGuild
         )
     ) {
         return true;
     }
 
-    const ticketConfig = getTicketConfig(
-        interaction.guild.id
+    const ticketConfig = getTicketConfig(interaction.guild.id);
+
+    return Boolean(
+        ticketConfig?.staffRoleId &&
+        interaction.member.roles?.cache?.has(ticketConfig.staffRoleId)
     );
-
-    if (
-        ticketConfig &&
-        ticketConfig.staffRoleId &&
-        member.roles &&
-        member.roles.cache.has(
-            ticketConfig.staffRoleId
-        )
-    ) {
-        return true;
-    }
-
-    return false;
 }
 
 // ======================================================
@@ -194,43 +150,22 @@ async function isStaff(interaction) {
 // ======================================================
 
 function extractGamePassId(url) {
-    if (
-        !url ||
-        typeof url !== "string"
-    ) {
-        return null;
-    }
-
-    url = url.trim();
-
-    if (url.length > 500) {
+    if (typeof url !== "string" || url.length > 500) {
         return null;
     }
 
     try {
-        const parsed = new URL(url);
-
-        if (parsed.protocol !== "https:") {
-            return null;
-        }
-
-        const hostname = parsed.hostname.toLowerCase();
+        const parsed = new URL(url.trim());
 
         if (
-            hostname !== "roblox.com" &&
-            hostname !== "www.roblox.com"
-        ) {
-            return null;
-        }
-
-        if (
+            parsed.protocol !== "https:" ||
+            !["roblox.com", "www.roblox.com"].includes(
+                parsed.hostname.toLowerCase()
+            ) ||
             parsed.username ||
-            parsed.password
+            parsed.password ||
+            parsed.port
         ) {
-            return null;
-        }
-
-        if (parsed.port) {
             return null;
         }
 
@@ -238,98 +173,77 @@ function extractGamePassId(url) {
             /^\/game-pass\/(\d+)(?:\/.*)?$/i
         );
 
-        if (!match) {
-            return null;
-        }
-
-        return match[1];
-
+        return match ? match[1] : null;
     } catch {
         return null;
     }
 }
 
-// ======================================================
-// NORMALIZE GAME PASS URL
-// ======================================================
-
 function normalizeGamePassUrl(url) {
-    const gamePassId = extractGamePassId(url);
+    const id = extractGamePassId(url);
 
-    if (!gamePassId) {
-        return null;
-    }
-
-    return `https://www.roblox.com/game-pass/${gamePassId}`;
+    return id
+        ? `https://www.roblox.com/game-pass/${id}`
+        : null;
 }
 
 // ======================================================
-// MARK GIVEAWAY PRIZE AS PAID
+// REGISTER PAYMENT IN GIVEAWAY BOT
 // ======================================================
 
 async function markGiveawayPrizeAsPaid(ticket, paidBy) {
     if (!GIVEAWAY_API_URL) {
-        throw new Error(
-            "GIVEAWAY_API_URL is missing."
-        );
+        throw new Error("GIVEAWAY_API_URL is missing.");
     }
 
     if (!GIVEAWAY_API_SECRET) {
-        throw new Error(
-            "GIVEAWAY_API_SECRET is missing."
-        );
+        throw new Error("GIVEAWAY_API_SECRET is missing.");
     }
 
-    if (
-        !ticket ||
-        !ticket.giveawayId ||
-        !ticket.discordId
-    ) {
-        throw new Error(
-            "Ticket is missing giveaway or winner information."
-        );
+    if (!ticket?.giveawayId || !ticket?.discordId) {
+        throw new Error("Ticket is missing giveaway or winner information.");
     }
 
+    // This path and payload match the Giveaway Bot's
+    // /internal/payout-status API.
     const response = await fetch(
-        `${GIVEAWAY_API_URL.replace(/\/+$/, "")}/internal/prize-paid`,
+        `${GIVEAWAY_API_URL.replace(/\/+$/, "")}/internal/payout-status`,
         {
             method: "POST",
-
             headers: {
                 "Content-Type": "application/json",
                 "x-api-secret": GIVEAWAY_API_SECRET
             },
-
             body: JSON.stringify({
-                giveawayId: String(ticket.giveawayId),
                 discordId: String(ticket.discordId),
-                ticketId: String(ticket.id),
-                paidBy: String(paidBy)
+                giveawayId: String(ticket.giveawayId),
+                amount: Number(ticket.robux),
+                status: "paid"
             })
         }
     );
 
-    const responseText = await response.text();
+    const text = await response.text();
 
     let result;
 
     try {
-        result = JSON.parse(responseText);
+        result = JSON.parse(text);
     } catch {
-        result = {
-            error: responseText
-        };
+        result = { error: text };
     }
 
-    if (
-        !response.ok ||
-        result.success !== true
-    ) {
+    if (!response.ok || result.success !== true) {
         throw new Error(
             result.error ||
             `Giveaway API returned HTTP ${response.status}`
         );
     }
+
+    console.log(
+        `💸 Payment registered: giveaway=${ticket.giveawayId}, ` +
+        `winner=${ticket.discordId}, amount=${ticket.robux}, staff=${paidBy}`
+    );
 
     return result;
 }
@@ -347,46 +261,53 @@ async function createWinnerTicket(data) {
         giveawayId
     } = data;
 
-    // GET GUILD
-    const guild = client.guilds.cache.get(guildId);
-
-    if (!guild) {
-        throw new Error("Guild not found.");
+    if (
+        !guildId ||
+        !discordId ||
+        !robloxUsername ||
+        !giveawayId ||
+        !Number.isFinite(Number(robux)) ||
+        Number(robux) <= 0
+    ) {
+        throw new Error("Invalid winner ticket data.");
     }
 
-    // GET TICKET CONFIG
-    const ticketConfig = getTicketConfig(guildId);
+    const guild = client.guilds.cache.get(String(guildId));
+
+    if (!guild) {
+        throw new Error("Ticket Bot is not in the specified server.");
+    }
+
+    const ticketConfig = getTicketConfig(String(guildId));
 
     if (!ticketConfig) {
         throw new Error(
-            "Ticket system has not been configured in this server."
+            "Ticket system is not configured. Run /setup-tickets first."
         );
     }
 
-    // STAFF ROLE MUST EXIST
-    if (!ticketConfig.staffRoleId) {
-        throw new Error(
-            "The ticket Staff Role has not been configured."
-        );
-    }
-
-    const staffRole = guild.roles.cache.get(
-        ticketConfig.staffRoleId
-    );
+    const staffRole = guild.roles.cache.get(ticketConfig.staffRoleId);
 
     if (!staffRole) {
-        throw new Error(
-            "The configured ticket Staff Role no longer exists."
-        );
+        throw new Error("The configured Staff Role no longer exists.");
     }
 
-    // CHECK EXISTING TICKET
+    const category = guild.channels.cache.get(ticketConfig.categoryId);
+
+    if (
+        !category ||
+        category.type !== ChannelType.GuildCategory
+    ) {
+        throw new Error("The configured ticket category no longer exists.");
+    }
+
+    // Reuse an existing ticket if its channel still exists.
     const existingTicket = getTicket(
-        giveawayId,
-        discordId
+        String(giveawayId),
+        String(discordId)
     );
 
-    if (existingTicket && existingTicket.channelId) {
+    if (existingTicket?.channelId) {
         const existingChannel = guild.channels.cache.get(
             existingTicket.channelId
         );
@@ -396,83 +317,43 @@ async function createWinnerTicket(data) {
         }
     }
 
-    // CREATE DATABASE TICKET
     const ticketId = createTicket({
-        giveawayId,
-        guildId,
-        discordId,
-        robloxUsername,
-        robux
+        giveawayId: String(giveawayId),
+        guildId: String(guildId),
+        discordId: String(discordId),
+        robloxUsername: String(robloxUsername),
+        robux: Number(robux)
     });
 
-    // FETCH WINNER
-    let winnerUser;
+    const winnerUser = await client.users.fetch(String(discordId));
 
-    try {
-        winnerUser = await client.users.fetch(discordId);
-    } catch (error) {
-        console.error(
-            "❌ Could not fetch winner user:",
-            error
-        );
-
-        throw new Error(
-            "Could not find the giveaway winner on Discord."
-        );
-    }
-
-    // VALIDATE CATEGORY
-    const category = guild.channels.cache.get(
-        ticketConfig.categoryId
-    );
-
-    if (
-        !category ||
-        category.type !== ChannelType.GuildCategory
-    ) {
-        throw new Error(
-            "The configured ticket category no longer exists."
-        );
-    }
-
-    // CHANNEL PERMISSIONS
     const permissionOverwrites = [
         {
             id: guild.id,
-
-            deny: [
-                PermissionsBitField.Flags.ViewChannel
-            ]
+            deny: [PermissionsBitField.Flags.ViewChannel]
         },
-
         {
             id: winnerUser.id,
-
             allow: [
                 PermissionsBitField.Flags.ViewChannel,
                 PermissionsBitField.Flags.SendMessages,
                 PermissionsBitField.Flags.ReadMessageHistory
             ],
-
             deny: [
                 PermissionsBitField.Flags.ManageChannels,
                 PermissionsBitField.Flags.ManageMessages
             ]
         },
-
         {
             id: staffRole.id,
-
             allow: [
                 PermissionsBitField.Flags.ViewChannel,
                 PermissionsBitField.Flags.SendMessages,
                 PermissionsBitField.Flags.ReadMessageHistory
             ]
         },
-
         {
             id: client.user.id,
-
             allow: [
                 PermissionsBitField.Flags.ViewChannel,
                 PermissionsBitField.Flags.SendMessages,
@@ -483,187 +364,121 @@ async function createWinnerTicket(data) {
         }
     ];
 
-    // SAFE CHANNEL NAME
-    const safeUsername = String(robloxUsername)
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, "")
-        .slice(0, 20) || "winner";
+    const safeUsername =
+        String(robloxUsername)
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, "")
+            .slice(0, 20) || "winner";
 
-    // CREATE CHANNEL
-    let channel;
+    const channel = await guild.channels.create({
+        name: `ticket-${safeUsername}`,
+        type: ChannelType.GuildText,
+        parent: category.id,
+        permissionOverwrites
+    });
 
-    try {
-        channel = await guild.channels.create({
-            name: `ticket-${safeUsername}`,
-            type: ChannelType.GuildText,
-            parent: category.id,
-            permissionOverwrites
-        });
-
-    } catch (error) {
-        console.error(
-            "❌ Failed to create ticket channel:",
-            error
-        );
-
-        throw new Error(
-            `Discord could not create the ticket channel: ${error.message}`
-        );
-    }
-
-    // SAVE CHANNEL ID
     setChannelId(ticketId, channel.id);
 
-    // TICKET EMBED
     const embed = new EmbedBuilder()
         .setTitle("🎉 Giveaway Winner Ticket")
         .setDescription(
             "Congratulations! You won a giveaway.\n\n" +
-            "Please follow the instructions below to receive your Robux."
+            "Follow the instructions below to receive your Robux."
         )
         .addFields(
             {
                 name: "🎮 Roblox Username",
-                value: `\`${robloxUsername}\``,
+                value: `\`${String(robloxUsername).slice(0, 100)}\``,
                 inline: true
             },
             {
                 name: "💰 Prize",
-                value: `**${robux} Robux**`,
+                value: `**${Number(robux)} Robux**`,
                 inline: true
             },
             {
                 name: "🆔 Giveaway ID",
-                value: `\`${giveawayId}\``,
+                value: `\`${String(giveawayId).slice(0, 100)}\``,
                 inline: true
             },
             {
                 name: "📋 What to do",
                 value:
-                    "1. Create a **Game Pass** on your Roblox account.\n" +
-                    `2. Set the Game Pass price to exactly **${robux} Robux**.\n` +
-                    "3. Make sure the Game Pass is **On Sale**.\n" +
-                    "4. Make sure you are the creator of the Game Pass.\n" +
-                    "5. Click **Submit Game Pass** below and send the link.\n\n" +
-                    "Staff will manually verify the Game Pass before sending the Robux."
+                    "1. Create a Game Pass on your Roblox account.\n" +
+                    `2. Set its price to exactly **${Number(robux)} Robux**.\n` +
+                    "3. Make sure the Game Pass is On Sale.\n" +
+                    "4. Make sure you are its creator.\n" +
+                    "5. Click **Submit Game Pass** and send the link.\n\n" +
+                    "Staff must manually verify the Game Pass before paying."
             }
         )
         .setFooter({
-            text:
-                "Do not delete or change the Game Pass until staff finishes verification."
+            text: "Do not change the Game Pass until staff finishes verification."
         });
 
-    // PLAYER BUTTON
-    const playerButtons = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId(`submit_gamepass_${ticketId}`)
-                .setLabel("Submit Game Pass")
-                .setEmoji("🎮")
-                .setStyle(ButtonStyle.Primary)
-        );
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`submit_gamepass_${ticketId}`)
+            .setLabel("Submit Game Pass")
+            .setEmoji("🎮")
+            .setStyle(ButtonStyle.Primary)
+    );
 
-    // SEND PLAYER TICKET MESSAGE
     try {
         await channel.send({
             content: `<@${winnerUser.id}>`,
             embeds: [embed],
-            components: [playerButtons]
+            components: [row]
         });
-
     } catch (error) {
-        console.error(
-            "❌ Failed to send ticket message:",
-            error
-        );
-
         try {
-            await channel.delete(
-                "Failed to send ticket message"
-            );
+            await channel.delete("Failed to send ticket message");
         } catch {}
 
-        throw new Error(
-            `Ticket channel was created, but the bot could not send the ticket message: ${error.message}`
-        );
+        throw error;
     }
 
     console.log(
-        `🎫 Ticket created for ${robloxUsername}`
-    );
-
-    console.log(
-        `📁 Channel ID: ${channel.id}`
-    );
-
-    console.log(
-        `👮 Staff Role: ${staffRole.name}`
+        `🎫 Ticket created: ${channel.name} | giveaway=${giveawayId}`
     );
 
     return channel;
 }
 
 // ======================================================
-// SLASH COMMANDS
+// INTERACTION HANDLER
 // ======================================================
 
 client.on("interactionCreate", async interaction => {
-    // ==================================================
-    // SETUP TICKETS
-    // ==================================================
-    if (
-        interaction.isChatInputCommand() &&
-        interaction.commandName === "setup-tickets"
-    ) {
-        try {
+    try {
+        // --------------------------------------------------
+        // SETUP TICKETS
+        // --------------------------------------------------
+        if (
+            interaction.isChatInputCommand() &&
+            interaction.commandName === "setup-tickets"
+        ) {
             if (
-                !interaction.memberPermissions ||
-                !interaction.memberPermissions.has(
+                !interaction.memberPermissions?.has(
                     PermissionsBitField.Flags.ManageGuild
                 )
             ) {
                 return interaction.reply({
-                    content:
-                        "❌ You need the **Manage Server** permission to use this command.",
+                    content: "❌ You need Manage Server permission.",
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            const category =
-                interaction.options.getChannel("category", true);
-
-            const staffRole =
-                interaction.options.getRole("staff_role", true);
+            const category = interaction.options.getChannel("category", true);
+            const staffRole = interaction.options.getRole("staff_role", true);
 
             if (
-                !category ||
-                category.type !== ChannelType.GuildCategory
+                category.type !== ChannelType.GuildCategory ||
+                staffRole.id === interaction.guild.id ||
+                staffRole.managed
             ) {
                 return interaction.reply({
-                    content: "❌ Please select a valid server category.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            if (!staffRole) {
-                return interaction.reply({
-                    content: "❌ You must select a Staff Role.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            if (staffRole.id === interaction.guild.id) {
-                return interaction.reply({
-                    content:
-                        "❌ You cannot use @everyone as the Staff Role.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            if (staffRole.managed) {
-                return interaction.reply({
-                    content:
-                        "❌ Please select a normal server role, not a managed role.",
+                    content: "❌ Select a valid category and a normal staff role.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -678,124 +493,64 @@ client.on("interactionCreate", async interaction => {
 
             return interaction.reply({
                 content:
-                    "✅ **Ticket system configured successfully.**\n\n" +
+                    "✅ **Ticket system configured.**\n\n" +
                     `📁 Category: <#${category.id}>\n` +
-                    `👮 Staff Role: <@&${staffRole.id}>\n\n` +
-                    "🎫 Giveaway tickets will only be visible to the giveaway winner and members with the Staff Role.",
+                    `👮 Staff Role: <@&${staffRole.id}>`,
                 flags: MessageFlags.Ephemeral
             });
-
-        } catch (error) {
-            console.error("❌ Setup ticket error:", error);
-
-            if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({
-                    content:
-                        "❌ An error occurred while configuring the ticket system.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
         }
 
-        return;
-    }
-
-    // ==================================================
-    // TICKET MANAGE
-    // ==================================================
-    if (
-        interaction.isChatInputCommand() &&
-        interaction.commandName === "ticket-manage"
-    ) {
-        try {
+        // --------------------------------------------------
+        // TICKET MANAGE
+        // --------------------------------------------------
+        if (
+            interaction.isChatInputCommand() &&
+            interaction.commandName === "ticket-manage"
+        ) {
             if (!(await isStaff(interaction))) {
                 return interaction.reply({
-                    content:
-                        "❌ Only ticket staff can use this command.",
+                    content: "❌ Only ticket staff can use this command.",
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            if (!interaction.channel) {
-                return interaction.reply({
-                    content:
-                        "❌ This command must be used inside a ticket.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const ticket = getTicketByChannelId(
-                interaction.channel.id
-            );
+            const ticket = getTicketByChannelId(interaction.channelId);
 
             if (!ticket) {
                 return interaction.reply({
-                    content:
-                        "❌ This channel is not a giveaway ticket.",
+                    content: "❌ Use this command inside a giveaway ticket.",
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            const ticketId = ticket.id;
-
-            const staffButtons = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`verify_gamepass_${ticketId}`)
-                        .setLabel("Verify Game Pass")
-                        .setEmoji("🔎")
-                        .setStyle(ButtonStyle.Success),
-
-                    new ButtonBuilder()
-                        .setCustomId(`mark_paid_${ticketId}`)
-                        .setLabel("Mark as Paid")
-                        .setEmoji("💸")
-                        .setStyle(ButtonStyle.Success),
-
-                    new ButtonBuilder()
-                        .setCustomId(`close_ticket_${ticketId}`)
-                        .setLabel("Close Ticket")
-                        .setEmoji("🔒")
-                        .setStyle(ButtonStyle.Danger)
-                );
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`verify_gamepass_${ticket.id}`)
+                    .setLabel("Verify Game Pass")
+                    .setEmoji("🔎")
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`mark_paid_${ticket.id}`)
+                    .setLabel("Mark as Paid")
+                    .setEmoji("💸")
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`close_ticket_${ticket.id}`)
+                    .setLabel("Close Ticket")
+                    .setEmoji("🔒")
+                    .setStyle(ButtonStyle.Danger)
+            );
 
             return interaction.reply({
-                content:
-                    "👮 **Staff Controls**\n\n" +
-                    "These controls are only visible to you.",
-                components: [staffButtons],
+                content: "👮 **Staff Controls**",
+                components: [row],
                 flags: MessageFlags.Ephemeral
             });
-
-        } catch (error) {
-            console.error("❌ Ticket manage error:", error);
-
-            if (
-                interaction.isRepliable() &&
-                !interaction.replied &&
-                !interaction.deferred
-            ) {
-                await interaction.reply({
-                    content:
-                        "❌ An error occurred while opening staff controls.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
         }
 
-        return;
-    }
-});
-
-// ======================================================
-// BUTTONS + MODALS
-// ======================================================
-
-client.on("interactionCreate", async interaction => {
-    try {
-        // ==============================================
-        // SUBMIT GAME PASS
-        // ==============================================
+        // --------------------------------------------------
+        // SUBMIT GAME PASS BUTTON
+        // --------------------------------------------------
         if (
             interaction.isButton() &&
             interaction.customId.startsWith("submit_gamepass_")
@@ -808,196 +563,7 @@ client.on("interactionCreate", async interaction => {
 
             if (!ticket) {
                 return interaction.reply({
-                    content: "❌ This ticket could not be found.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const staff = await isStaff(interaction);
-
-            if (
-                interaction.user.id !== ticket.discordId &&
-                !staff
-            ) {
-                return interaction.reply({
-                    content:
-                        "❌ Only the winner or ticket staff can submit a Game Pass.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const modal = new ModalBuilder()
-                .setCustomId(`gamepass_modal_${ticketId}`)
-                .setTitle("Submit Game Pass");
-
-            const input = new TextInputBuilder()
-                .setCustomId("gamepass_url")
-                .setLabel("Roblox Game Pass URL")
-                .setPlaceholder(
-                    "https://www.roblox.com/game-pass/123456789"
-                )
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(input)
-            );
-
-            return interaction.showModal(modal);
-        }
-
-        // ==============================================
-        // VERIFY GAME PASS — STAFF ONLY
-        // ==============================================
-        if (
-            interaction.isButton() &&
-            interaction.customId.startsWith("verify_gamepass_")
-        ) {
-            if (!(await isStaff(interaction))) {
-                return interaction.reply({
-                    content:
-                        "❌ Only ticket staff can verify Game Passes.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const ticketId = Number(
-                interaction.customId.replace("verify_gamepass_", "")
-            );
-
-            const ticket = getTicket(ticketId);
-
-            if (!ticket) {
-                return interaction.reply({
-                    content: "❌ This ticket could not be found.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            if (!ticket.gamepassUrl) {
-                return interaction.reply({
-                    content:
-                        "❌ The winner has not submitted a Game Pass link yet.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const gamePassId = extractGamePassId(
-                ticket.gamepassUrl
-            );
-
-            if (!gamePassId) {
-                return interaction.reply({
-                    content:
-                        "❌ The submitted Game Pass URL is invalid.",
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-
-            const verifiedEmbed = new EmbedBuilder()
-                .setTitle("🔎 Game Pass Submitted")
-                .setDescription(
-                    "The Game Pass link is a valid Roblox Game Pass URL.\n\n" +
-                    "⚠️ **Manual verification required:**\n" +
-                    "Open the Game Pass below in your browser and check it before paying the winner.\n\n" +
-                    "The bot does **not** automatically verify the price, creator, On Sale status, or other Roblox properties."
-                )
-                .addFields(
-                    {
-                        name: "🎮 Roblox Username",
-                        value: `\`${ticket.robloxUsername}\``,
-                        inline: true
-                    },
-                    {
-                        name: "💰 Giveaway Prize",
-                        value: `**${ticket.robux} Robux**`,
-                        inline: true
-                    },
-                    {
-                        name: "🆔 Giveaway ID",
-                        value: `\`${ticket.giveawayId}\``,
-                        inline: true
-                    },
-                    {
-                        name: "🆔 Game Pass ID",
-                        value: `\`${gamePassId}\``,
-                        inline: true
-                    },
-                    {
-                        name: "🔗 Submitted Game Pass",
-                        value: ticket.gamepassUrl,
-                        inline: false
-                    }
-                );
-
-            const verificationButtons = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setLabel("Open Game Pass")
-                        .setEmoji("🌐")
-                        .setStyle(ButtonStyle.Link)
-                        .setURL(ticket.gamepassUrl),
-
-                    new ButtonBuilder()
-                        .setCustomId(`mark_paid_${ticketId}`)
-                        .setLabel("Mark as Paid")
-                        .setEmoji("💸")
-                        .setStyle(ButtonStyle.Success),
-
-                    new ButtonBuilder()
-                        .setCustomId(`close_ticket_${ticketId}`)
-                        .setLabel("Close Ticket")
-                        .setEmoji("🔒")
-                        .setStyle(ButtonStyle.Danger)
-                );
-
-            return interaction.reply({
-                embeds: [verifiedEmbed],
-                components: [verificationButtons],
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        // الجزء الخاص بزر Mark as Paid وزر Close Ticket
-        // ونافذة إرسال رابط الـGame Pass سيأتي في الجزء الثالث.
-
-    } catch (error) {
-        console.error("❌ Ticket interaction error:", error);
-
-        if (
-            interaction.isRepliable() &&
-            !interaction.replied &&
-            !interaction.deferred
-        ) {
-            await interaction.reply({
-                content:
-                    "❌ An error occurred while processing this interaction.",
-                flags: MessageFlags.Ephemeral
-            }).catch(() => {});
-        }
-    }
-// ======================================================
-// BUTTONS + MODALS
-// ======================================================
-
-client.on("interactionCreate", async interaction => {
-    try {
-        // ==================================================
-        // SUBMIT GAME PASS
-        // ==================================================
-        if (
-            interaction.isButton() &&
-            interaction.customId.startsWith("submit_gamepass_")
-        ) {
-            const ticketId = Number(
-                interaction.customId.replace("submit_gamepass_", "")
-            );
-
-            const ticket = getTicket(ticketId);
-
-            if (!ticket) {
-                return interaction.reply({
-                    content: "❌ This ticket could not be found.",
+                    content: "❌ Ticket not found.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -1011,6 +577,13 @@ client.on("interactionCreate", async interaction => {
                 });
             }
 
+            if (ticket.status === "paid" || ticket.status === "closed") {
+                return interaction.reply({
+                    content: "❌ This ticket is already closed.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
             const modal = new ModalBuilder()
                 .setCustomId(`gamepass_modal_${ticketId}`)
                 .setTitle("Submit Game Pass");
@@ -1018,9 +591,7 @@ client.on("interactionCreate", async interaction => {
             const input = new TextInputBuilder()
                 .setCustomId("gamepass_url")
                 .setLabel("Roblox Game Pass URL")
-                .setPlaceholder(
-                    "https://www.roblox.com/game-pass/123456789"
-                )
+                .setPlaceholder("https://www.roblox.com/game-pass/123456789")
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
@@ -1031,9 +602,9 @@ client.on("interactionCreate", async interaction => {
             return interaction.showModal(modal);
         }
 
-        // ==================================================
-        // VERIFY GAME PASS
-        // ==================================================
+        // --------------------------------------------------
+        // VERIFY GAME PASS BUTTON
+        // --------------------------------------------------
         if (
             interaction.isButton() &&
             interaction.customId.startsWith("verify_gamepass_")
@@ -1053,14 +624,14 @@ client.on("interactionCreate", async interaction => {
 
             if (!ticket) {
                 return interaction.reply({
-                    content: "❌ This ticket could not be found.",
+                    content: "❌ Ticket not found.",
                     flags: MessageFlags.Ephemeral
                 });
             }
 
             if (!ticket.gamepassUrl) {
                 return interaction.reply({
-                    content: "❌ The winner has not submitted a Game Pass link yet.",
+                    content: "❌ The winner has not submitted a Game Pass link.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -1069,23 +640,22 @@ client.on("interactionCreate", async interaction => {
 
             if (!gamePassId) {
                 return interaction.reply({
-                    content: "❌ The submitted Game Pass URL is invalid.",
+                    content: "❌ Invalid Game Pass URL.",
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            const verifiedEmbed = new EmbedBuilder()
+            const embed = new EmbedBuilder()
                 .setTitle("🔎 Game Pass Submitted")
                 .setDescription(
-                    "The Game Pass link is a valid Roblox Game Pass URL.\n\n" +
-                    "⚠️ **Manual verification required:**\n" +
-                    "Open the Game Pass and manually check its price, creator, and On Sale status before paying the winner.\n\n" +
-                    "The bot does not automatically verify these Roblox properties."
+                    "Review this Game Pass manually before sending Robux.\n\n" +
+                    "⚠️ This bot validates the URL format only. It does not automatically " +
+                    "verify the price, creator, or On Sale status."
                 )
                 .addFields(
                     {
                         name: "🎮 Roblox Username",
-                        value: `\`${ticket.robloxUsername}\``,
+                        value: `\`${String(ticket.robloxUsername).slice(0, 100)}\``,
                         inline: true
                     },
                     {
@@ -1094,48 +664,45 @@ client.on("interactionCreate", async interaction => {
                         inline: true
                     },
                     {
-                        name: "🆔 Game Pass ID",
-                        value: `\`${gamePassId}\``,
+                        name: "🆔 Giveaway ID",
+                        value: `\`${String(ticket.giveawayId).slice(0, 100)}\``,
                         inline: true
                     },
                     {
-                        name: "🔗 Submitted Game Pass",
+                        name: "🔗 Game Pass",
                         value: ticket.gamepassUrl,
                         inline: false
                     }
                 );
 
-            const verificationButtons = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setLabel("Open Game Pass")
-                        .setEmoji("🌐")
-                        .setStyle(ButtonStyle.Link)
-                        .setURL(ticket.gamepassUrl),
-
-                    new ButtonBuilder()
-                        .setCustomId(`mark_paid_${ticketId}`)
-                        .setLabel("Mark as Paid")
-                        .setEmoji("💸")
-                        .setStyle(ButtonStyle.Success),
-
-                    new ButtonBuilder()
-                        .setCustomId(`close_ticket_${ticketId}`)
-                        .setLabel("Close Ticket")
-                        .setEmoji("🔒")
-                        .setStyle(ButtonStyle.Danger)
-                );
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel("Open Game Pass")
+                    .setEmoji("🌐")
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(ticket.gamepassUrl),
+                new ButtonBuilder()
+                    .setCustomId(`mark_paid_${ticketId}`)
+                    .setLabel("Mark as Paid")
+                    .setEmoji("💸")
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`close_ticket_${ticketId}`)
+                    .setLabel("Close Ticket")
+                    .setEmoji("🔒")
+                    .setStyle(ButtonStyle.Danger)
+            );
 
             return interaction.reply({
-                embeds: [verifiedEmbed],
-                components: [verificationButtons],
+                embeds: [embed],
+                components: [row],
                 flags: MessageFlags.Ephemeral
             });
         }
 
-        // ==================================================
+        // --------------------------------------------------
         // MARK AS PAID
-        // ==================================================
+        // --------------------------------------------------
         if (
             interaction.isButton() &&
             interaction.customId.startsWith("mark_paid_")
@@ -1155,7 +722,14 @@ client.on("interactionCreate", async interaction => {
 
             if (!ticket) {
                 return interaction.reply({
-                    content: "❌ This ticket could not be found.",
+                    content: "❌ Ticket not found.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (ticket.status === "paid") {
+                return interaction.reply({
+                    content: "ℹ️ This ticket is already marked as paid.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -1164,48 +738,40 @@ client.on("interactionCreate", async interaction => {
                 flags: MessageFlags.Ephemeral
             });
 
-            // --------------------------------------------------
-            // REGISTER PAYMENT IN GIVEAWAY BOT FIRST
-            // --------------------------------------------------
+            // Update Giveaway Bot first. If this fails, do not mark this
+            // ticket paid and do not delete it.
             try {
                 await markGiveawayPrizeAsPaid(ticket, interaction.user.id);
             } catch (error) {
-                console.error("❌ Giveaway payment registration failed:", error);
+                console.error("❌ Payment registration failed:", error);
 
                 return interaction.editReply({
                     content:
-                        "❌ **Payment was not recorded.**\n\n" +
-                        "The Giveaway Bot did not confirm the payment record, " +
+                        "❌ **Payment record failed.** The Giveaway Bot did not confirm the update, " +
                         "so this ticket has not been marked as paid.\n\n" +
-                        "Check the Giveaway Bot URL, API secret, and service logs, then try again."
+                        "Check GIVEAWAY_API_URL, GIVEAWAY_API_SECRET, and the Giveaway Bot logs."
                 });
             }
 
-            // --------------------------------------------------
-            // MARK TICKET AS PAID AFTER API SUCCESS
-            // --------------------------------------------------
             try {
                 closeTicket(ticketId, "paid");
             } catch (error) {
-                console.error("❌ Failed to update ticket payment status:", error);
+                console.error("❌ Ticket database update failed:", error);
 
                 return interaction.editReply({
                     content:
-                        "⚠️ The Giveaway Bot accepted the payment record, " +
-                        "but the ticket database update failed. Check the database before retrying."
+                        "⚠️ The Giveaway Bot accepted the payment update, but the ticket database " +
+                        "could not be updated. Check both services before retrying."
                 });
             }
 
             await interaction.editReply({
                 content:
-                    "✅ **Payment recorded successfully.**\n\n" +
-                    "The Giveaway Bot has been notified and the ticket is marked as paid.\n" +
+                    "✅ **Payment record updated successfully.**\n" +
+                    "The Giveaway Bot confirmed the payment, and this ticket is marked as paid.\n" +
                     "The ticket will be deleted in 5 seconds."
             });
 
-            // --------------------------------------------------
-            // INFORM WINNER
-            // --------------------------------------------------
             try {
                 await interaction.channel.send({
                     content:
@@ -1213,37 +779,32 @@ client.on("interactionCreate", async interaction => {
                         `Your **${ticket.robux} Robux** giveaway reward has been marked as paid by staff.`
                 });
             } catch (error) {
-                console.error("❌ Failed to send payment message:", error);
+                console.error("❌ Could not notify winner:", error.message);
             }
 
-            // --------------------------------------------------
-            // DELETE AFTER 5 SECONDS
-            // --------------------------------------------------
             setTimeout(async () => {
                 try {
                     if (interaction.channel?.deletable) {
-                        await interaction.channel.delete(
-                            "Giveaway reward paid"
-                        );
+                        await interaction.channel.delete("Giveaway reward paid");
                     }
                 } catch (error) {
-                    console.error("❌ Failed to delete paid ticket:", error);
+                    console.error("❌ Could not delete paid ticket:", error.message);
                 }
             }, 5000);
 
             return;
         }
 
-        // ==================================================
+        // --------------------------------------------------
         // CLOSE TICKET
-        // ==================================================
+        // --------------------------------------------------
         if (
             interaction.isButton() &&
             interaction.customId.startsWith("close_ticket_")
         ) {
             if (!(await isStaff(interaction))) {
                 return interaction.reply({
-                    content: "❌ Only ticket staff can close giveaway tickets.",
+                    content: "❌ Only ticket staff can close tickets.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -1256,7 +817,14 @@ client.on("interactionCreate", async interaction => {
 
             if (!ticket) {
                 return interaction.reply({
-                    content: "❌ This ticket could not be found.",
+                    content: "❌ Ticket not found.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (ticket.status === "paid") {
+                return interaction.reply({
+                    content: "ℹ️ This ticket is already marked as paid.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -1271,21 +839,19 @@ client.on("interactionCreate", async interaction => {
                     closeTicket(ticketId, "closed");
 
                     if (interaction.channel?.deletable) {
-                        await interaction.channel.delete(
-                            "Ticket closed by staff"
-                        );
+                        await interaction.channel.delete("Ticket closed by staff");
                     }
                 } catch (error) {
-                    console.error("❌ Failed to close ticket:", error);
+                    console.error("❌ Could not close ticket:", error.message);
                 }
             }, 5000);
 
             return;
         }
 
-        // ==================================================
-        // GAME PASS MODAL
-        // ==================================================
+        // --------------------------------------------------
+        // GAME PASS MODAL SUBMISSION
+        // --------------------------------------------------
         if (
             interaction.isModalSubmit() &&
             interaction.customId.startsWith("gamepass_modal_")
@@ -1298,7 +864,7 @@ client.on("interactionCreate", async interaction => {
 
             if (!ticket) {
                 return interaction.reply({
-                    content: "❌ This ticket could not be found.",
+                    content: "❌ Ticket not found.",
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -1312,42 +878,46 @@ client.on("interactionCreate", async interaction => {
                 });
             }
 
+            if (ticket.status === "paid" || ticket.status === "closed") {
+                return interaction.reply({
+                    content: "❌ This ticket is already closed.",
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
             const url = interaction.fields
                 .getTextInputValue("gamepass_url")
                 .trim();
 
-            const gamePassId = extractGamePassId(url);
+            const cleanUrl = normalizeGamePassUrl(url);
 
-            if (!gamePassId) {
+            if (!cleanUrl) {
                 return interaction.reply({
                     content:
                         "❌ Invalid Game Pass URL.\n\n" +
-                        "Only a valid HTTPS Roblox Game Pass link is accepted.\n\n" +
-                        "Example:\n" +
+                        "Use a link like:\n" +
                         "`https://www.roblox.com/game-pass/123456789`",
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            const cleanUrl = normalizeGamePassUrl(url);
-
             setGamepassUrl(ticketId, cleanUrl);
 
             await interaction.reply({
                 content:
-                    "✅ Game Pass link submitted successfully.\n\n" +
-                    "Staff can use `/ticket-manage` and click **Verify Game Pass** to manually verify it.",
+                    "✅ Game Pass link submitted successfully.\n" +
+                    "Staff can use `/ticket-manage` and click **Verify Game Pass**.",
                 flags: MessageFlags.Ephemeral
             });
 
             try {
                 await interaction.channel.send({
                     content:
-                        `🎮 <@${ticket.discordId}> submitted a Game Pass.\n\n` +
-                        "Staff can now use `/ticket-manage` to verify it."
+                        `🎮 <@${ticket.discordId}> submitted a Game Pass.\n` +
+                        "Staff can now review the link."
                 });
             } catch (error) {
-                console.error("❌ Failed to send submission message:", error);
+                console.error("❌ Could not notify ticket channel:", error.message);
             }
 
             return;
@@ -1360,18 +930,14 @@ client.on("interactionCreate", async interaction => {
             !interaction.replied &&
             !interaction.deferred
         ) {
-            try {
-                await interaction.reply({
-                    content: "❌ An unexpected error occurred. Please try again.",
-                    flags: MessageFlags.Ephemeral
-                });
-            } catch {}
+            await interaction.reply({
+                content: "❌ An unexpected error occurred. Check the bot logs.",
+                flags: MessageFlags.Ephemeral
+            }).catch(() => {});
         } else if (interaction.deferred && !interaction.replied) {
-            try {
-                await interaction.editReply({
-                    content: "❌ An unexpected error occurred. Please check the bot logs."
-                });
-            } catch {}
+            await interaction.editReply({
+                content: "❌ An unexpected error occurred. Check the bot logs."
+            }).catch(() => {});
         }
     }
 });
@@ -1382,11 +948,7 @@ client.on("interactionCreate", async interaction => {
 
 const app = express();
 
-app.use(express.json());
-
-// ======================================================
-// HEALTH CHECK
-// ======================================================
+app.use(express.json({ limit: "100kb" }));
 
 app.get("/internal/health", (req, res) => {
     res.json({
@@ -1395,10 +957,7 @@ app.get("/internal/health", (req, res) => {
     });
 });
 
-// ======================================================
-// GIVEAWAY WINNER -> CREATE TICKET
-// ======================================================
-
+// Giveaway Bot -> Ticket Bot: create winner ticket
 app.post("/internal/giveaway-winner", async (req, res) => {
     try {
         const secret = req.headers["x-api-secret"];
@@ -1416,27 +975,28 @@ app.post("/internal/giveaway-winner", async (req, res) => {
             robloxUsername,
             robux,
             giveawayId
-        } = req.body;
+        } = req.body || {};
 
         if (
             !guildId ||
             !discordId ||
             !robloxUsername ||
-            !robux ||
-            !giveawayId
+            !giveawayId ||
+            !Number.isFinite(Number(robux)) ||
+            Number(robux) <= 0
         ) {
             return res.status(400).json({
                 success: false,
-                error: "Missing required winner data."
+                error: "Missing or invalid winner data."
             });
         }
 
         const channel = await createWinnerTicket({
-            guildId,
-            discordId,
-            robloxUsername,
+            guildId: String(guildId),
+            discordId: String(discordId),
+            robloxUsername: String(robloxUsername),
             robux: Number(robux),
-            giveawayId
+            giveawayId: String(giveawayId)
         });
 
         return res.json({
@@ -1453,12 +1013,8 @@ app.post("/internal/giveaway-winner", async (req, res) => {
     }
 });
 
-// ======================================================
-// API SERVER
-// ======================================================
-
 app.listen(API_PORT, "0.0.0.0", () => {
-    console.log(`🌐 Internal API running on 0.0.0.0:${API_PORT}`);
+    console.log(`🌐 Ticket Bot API listening on port ${API_PORT}`);
     console.log("🔗 Health endpoint: /internal/health");
 });
 
@@ -1482,16 +1038,14 @@ client.on("guildCreate", async guild => {
 
         await rest.put(
             Routes.applicationGuildCommands(config.clientId, guild.id),
-            {
-                body: commands
-            }
+            { body: commands }
         );
 
         console.log(`✅ Commands registered in new server: ${guild.name}`);
     } catch (error) {
         console.error(
-            `❌ Failed to register commands in new server ${guild.name}:`,
-            error
+            `❌ Could not register commands in ${guild.name}:`,
+            error.message
         );
     }
 });
@@ -1508,5 +1062,3 @@ client.on("guildCreate", async guild => {
         console.error("❌ Failed to start Ticket Bot:", error);
     }
 })();
-    return;
-}
